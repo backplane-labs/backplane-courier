@@ -3,7 +3,7 @@ module github.com/backplane-labs/backplane-courier
 go 1.26.8
 
 require (
-	github.com/backplane-labs/backplane v0.6.4
+	github.com/backplane-labs/backplane v0.6.6
 	github.com/emersion/go-smtp v0.25.0
 	github.com/google/uuid v1.6.0
 	github.com/gopherex/schemapb/go v1.7.0
