@@ -203,3 +203,41 @@ func TestReconnect(t *testing.T) {
 
 	waitHealth(true)
 }
+
+type slow struct{ echo }
+
+func (slow) Send(ctx context.Context, _ provider.Delivery) ([]byte, error) {
+	<-ctx.Done()
+
+	return nil, ctx.Err()
+}
+
+// A plugin slower than the channel's timeout fails retryably, saying so.
+func TestSlowPlugin(t *testing.T) {
+	t.Parallel()
+
+	socket := filepath.Join(t.TempDir(), "s.sock")
+
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() { _ = plugin.ServeListener(t.Context(), lis, slow{}) }()
+
+	client, err := plugin.Dial("unix://" + socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+
+	var perr *provider.Error
+	if _, err := client.Send(ctx, provider.Delivery{}); !errors.As(err, &perr) || perr.Permanent ||
+		perr.Code != "PLUGIN_DeadlineExceeded" || !strings.Contains(perr.Message, "did not answer in time") {
+		t.Fatalf("slow: %v", err)
+	}
+}
