@@ -216,6 +216,15 @@ func TestMail(t *testing.T) {
 	}
 }
 
+func TestScrub(t *testing.T) {
+	t.Parallel()
+
+	got := courier.Scrubbed("550 5.1.1 <gone@example.com>: no such user", []string{"gone@example.com", "x"})
+	if strings.Contains(got, "gone@example.com") || !strings.Contains(got, "no such user") {
+		t.Fatalf("scrubbed %q", got)
+	}
+}
+
 func TestPush(t *testing.T) {
 	t.Parallel()
 

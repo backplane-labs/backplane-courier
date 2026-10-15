@@ -224,9 +224,9 @@ func (c *Courier) SendMail(ctx context.Context, msg mail.Message) (MailResult, e
 
 	out := MailResult{Channel: ch.Name, MessageID: strings.Trim(built.GetMessageID(), "<>"), DryRun: c.set.DryRun.Get()}
 
-	err = c.deliver(ctx, ch, target, func(ctx context.Context) (string, error) {
+	err = c.deliver(ctx, ch, target, msg.Recipients(), func(ctx context.Context) (string, error) {
 		if ch.Mail == nil || out.DryRun {
-			c.logged(ctx, ch, target, "subject", msg.Subject)
+			c.logged(ctx, ch, target, int(msg.Size()))
 
 			return out.MessageID, nil
 		}
@@ -255,9 +255,9 @@ func (c *Courier) SendPush(ctx context.Context, msg push.Message) (PushResult, e
 
 	out := PushResult{Channel: ch.Name, DryRun: c.set.DryRun.Get()}
 
-	err = c.deliver(ctx, ch, msg.Target(), func(ctx context.Context) (string, error) {
+	err = c.deliver(ctx, ch, msg.Target(), []string{msg.Token}, func(ctx context.Context) (string, error) {
 		if ch.Push == nil || out.DryRun {
-			c.logged(ctx, ch, msg.Target(), "title", msg.Title)
+			c.logged(ctx, ch, msg.Target(), len(body))
 
 			out.Name = "logged/" + uuid.NewString()
 
@@ -309,9 +309,9 @@ func (c *Courier) topic(
 
 	out := TopicResult{Channel: ch.Name}
 
-	err = c.deliver(ctx, ch, "topic:"+req.Topic, func(ctx context.Context) (string, error) {
+	err = c.deliver(ctx, ch, "topic:"+req.Topic, req.Tokens, func(ctx context.Context) (string, error) {
 		if ch.Push == nil || c.set.DryRun.Get() {
-			c.logged(ctx, ch, "topic:"+req.Topic, operation, strconv.Itoa(len(req.Tokens)))
+			c.logged(ctx, ch, "topic:"+req.Topic+"/"+operation, len(req.Tokens))
 
 			for _, t := range req.Tokens {
 				out.Results = append(out.Results, fcm.TokenResult{Token: t})
@@ -359,9 +359,9 @@ func (c *Courier) extension(kind string) func(ctx context.Context, in []byte) ([
 
 		var result []byte
 
-		err = c.deliver(ctx, ch, kind, func(ctx context.Context) (string, error) {
+		err = c.deliver(ctx, ch, kind, stringsOf(fields), func(ctx context.Context) (string, error) {
 			if ch.Extension == nil || c.set.DryRun.Get() {
-				c.logged(ctx, ch, kind, "bytes", strconv.Itoa(len(message)))
+				c.logged(ctx, ch, kind, len(message))
 
 				result = []byte(`{"id":"logged"}`)
 
@@ -388,6 +388,21 @@ func (c *Courier) extension(kind string) func(ctx context.Context, in []byte) ([
 	}
 }
 
+// stringsOf are the top-level string values of an extension message: a
+// provider's error may echo the number or address it refused.
+func stringsOf(fields map[string]json.RawMessage) []string {
+	var out []string
+
+	for _, raw := range fields {
+		var v string
+		if json.Unmarshal(raw, &v) == nil {
+			out = append(out, v)
+		}
+	}
+
+	return out
+}
+
 // pick is the channel of kind, or a final error.
 func (c *Courier) pick(kind, name string) (*channels.Channel, error) {
 	ch, err := c.channels.Pick(kind, name)
@@ -401,7 +416,7 @@ func (c *Courier) pick(kind, name string) (*channels.Channel, error) {
 // deliver runs send within the channel's pool, rate and timeout, and
 // turns its error into the activity's: final, later, or retried.
 func (c *Courier) deliver(
-	ctx context.Context, ch *channels.Channel, target string, send func(context.Context) (string, error),
+	ctx context.Context, ch *channels.Channel, target string, scrub []string, send func(context.Context) (string, error),
 ) error {
 	release, err := ch.Acquire(ctx)
 	if err != nil {
@@ -421,7 +436,7 @@ func (c *Courier) deliver(
 		outcome = "failed"
 	}
 
-	c.record(ctx, ch, target, id, outcome, took, err)
+	c.record(ctx, ch, target, id, outcome, took, err, scrub)
 
 	return classify(err)
 }
@@ -447,15 +462,32 @@ func classify(err error) error {
 	}
 }
 
-func (c *Courier) logged(ctx context.Context, ch *channels.Channel, target, key, value string) {
+// logged notes a delivery a log channel or dry run took: the target as
+// audited (hashed) and the size of what was not sent, never its content.
+func (c *Courier) logged(ctx context.Context, ch *channels.Channel, target string, size int) {
 	c.Log().Ctx().Info(ctx, "delivery logged, not sent", xlog.String("channel", ch.Name), xlog.String("kind", ch.Kind),
-		xlog.String("target", target), xlog.String(key, value), xlog.Bool("dry_run", c.set.DryRun.Get()))
+		xlog.String("target", target), xlog.Int("bytes", size), xlog.Bool("dry_run", c.set.DryRun.Get()))
 }
+
+// scrubbed is a provider's error text without the recipients, tokens and
+// numbers of the delivery: a relay echoes the address it refused.
+func scrubbed(text string, scrub []string) string {
+	for _, v := range scrub {
+		if len(v) >= minScrub {
+			text = strings.ReplaceAll(text, v, "[redacted]")
+		}
+	}
+
+	return text
+}
+
+// minScrub: shorter values would redact unrelated text.
+const minScrub = 4
 
 // record is the delivery's metrics and audit record: facts only, never a
 // payload; recipients and tokens are hashed.
 func (c *Courier) record(
-	ctx context.Context, ch *channels.Channel, target, id, outcome string, took time.Duration, err error,
+	ctx context.Context, ch *channels.Channel, target, id, outcome string, took time.Duration, err error, scrub []string,
 ) {
 	attrs := metric.WithAttributes(attribute.String("channel", ch.Name), attribute.String("kind", ch.Kind),
 		attribute.String("outcome", outcome))
@@ -484,7 +516,7 @@ func (c *Courier) record(
 	}
 
 	if err != nil {
-		fields = append(fields, xlog.String("error", err.Error()))
+		fields = append(fields, xlog.String("error", scrubbed(err.Error(), scrub)))
 
 		var pe *provider.Error
 		if errors.As(err, &pe) {
