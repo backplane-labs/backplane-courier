@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { create } from '@bufbuild/protobuf';
 import type { Duration } from '@bufbuild/protobuf/wkt';
@@ -20,12 +21,16 @@ function useText() { return useTranslation('module.courier').t; }
 /** Every channel, its provider details and a check. */
 function Channels() {
   const t = useText(), context = usePluginContext(), client = useClient(AdminServiceClient);
-  const state = usePlatformQuery('courier:channels', (signal) => client.listChannels(create(ListChannelsRequestSchema), { signal }), { keep: true });
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), 10_000); return () => clearInterval(id); }, []);
+  const state = usePlatformQuery(`courier:channels:${tick}`, (signal) => client.listChannels(create(ListChannelsRequestSchema), { signal }), { keep: true });
   return <Stack gap={16}><ConnectionNotice />
     <PageHeader title={t('title')} description={t('description')} meta={<Badge variant="outline">{t(context.environment)}</Badge>}
       actions={<Button variant="outline" size="sm" onClick={state.refresh}>{t('refresh')}</Button>} />
     {state.value?.dryRun && <p role="status" style={{ margin: 0 }}><StatusBadge tone="warning">{t('dryRun')}</StatusBadge></p>}
-    <Panel title={t('channels')} count={state.value?.channels.length} flush>
+    {state.value?.channels.filter((c) => c.problem).map((c) => <p key={c.name} role="alert" style={{ margin: 0 }}>
+      <StatusBadge tone="danger">{t('problem', { channel: c.name })}</StatusBadge> <span style={{ fontSize: 13 }}>{c.problem}</span></p>)}
+    <Panel title={t('channels')} count={state.value?.channels.length} flush footer={<span style={muted}>{t('audit')}</span>}>
       {state.error !== undefined ? <EmptyState title={t('error')} role="alert" /> : !state.value
         ? <Stack gap={8} style={{ padding: 12 }} role="status" aria-label={t('loading')}><Skeleton style={{ height: 28 }} /><Skeleton style={{ height: 28 }} /></Stack>
         : !state.value.channels.length ? <EmptyState title={t('noChannels')} />
@@ -39,7 +44,10 @@ function ChannelRow({ channel }: { channel: Channel }) {
   const t = useText(), client = useClient(AdminServiceClient), check = usePlatformAction<{ ok: boolean; error: string; took: string }>();
   return <TableRow>
     <TableCell style={mono}>{channel.name}{channel.default && <Badge variant="outline" style={{ marginLeft: 8 }}>{t('default')}</Badge>}</TableCell>
-    <TableCell><Stack direction="row" gap={4}><Badge variant="outline">{channel.kind}</Badge>{channel.plugin && <span style={muted}>{t('plugin', { name: channel.plugin })}</span>}</Stack></TableCell>
+    <TableCell><Stack gap={4}><Stack direction="row" gap={4}><Badge variant="outline">{channel.kind}</Badge>{channel.plugin && <span style={muted}>{t('plugin', { name: channel.plugin })}</span>}</Stack>
+      {channel.plugin && (channel.problem
+        ? <StatusBadge tone="danger" title={channel.problem}>{t('pluginDown')}</StatusBadge>
+        : <StatusBadge tone="success">{t('pluginUp')}</StatusBadge>)}</Stack></TableCell>
     <TableCell style={mono}>courier.{channel.activity}</TableCell>
     <TableCell><Stack gap={2}>{Object.entries(channel.details).sort().map(([key, value]) => <span key={key} style={{ fontSize: 12 }}><span style={muted}>{key}</span> <span style={mono}>{value}</span></span>)}</Stack></TableCell>
     <TableCell style={muted}>{t('pool', { count: channel.pool })} · {channel.ratePerMinute ? t('rate', { count: channel.ratePerMinute }) : t('unbounded')} · {t('timeout', { value: seconds(channel.timeout) })}</TableCell>

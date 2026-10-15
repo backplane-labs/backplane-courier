@@ -41,6 +41,10 @@ message Channel {
   google.protobuf.Duration timeout = 8;
   // The channel its kind's activities use when a message names none.
   bool default = 9;
+  // A plugin channel's state: empty while the plugin is reachable,
+  // serving and describing the contract courier started with; else why
+  // not (courier is not ready meanwhile).
+  string problem = 10;
 }
 
 message CheckChannelRequest {

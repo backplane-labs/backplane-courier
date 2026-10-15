@@ -20,11 +20,14 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	pluginv1 "github.com/backplane-labs/backplane-courier/proto/courier/plugin/v1"
@@ -83,13 +86,13 @@ func ServeListener(ctx context.Context, lis net.Listener, p provider.Provider, o
 	srv := grpc.NewServer(o.grpc...)
 	pluginv1.RegisterProviderServiceServer(srv, &server{p: p})
 
-	status := health.NewServer()
-	status.SetServingStatus(ServiceName, healthpb.HealthCheckResponse_SERVING)
-	healthpb.RegisterHealthServer(srv, status)
+	healthSrv := health.NewServer()
+	healthSrv.SetServingStatus(ServiceName, healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(srv, healthSrv)
 
 	go func() {
 		<-ctx.Done()
-		status.Shutdown()
+		healthSrv.Shutdown()
 		srv.GracefulStop()
 	}()
 
@@ -167,6 +170,7 @@ const ServiceName = "courier.plugin.v1.ProviderService"
 const (
 	keepaliveTime    = 30 * time.Second
 	keepaliveTimeout = 10 * time.Second
+	reconnectMax     = 2 * time.Second
 )
 
 // Client is a plugin as a provider.Provider.
@@ -205,6 +209,12 @@ func Dial(target string, opts ...DialOption) (*Client, error) {
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time: keepaliveTime, Timeout: keepaliveTimeout, PermitWithoutStream: true,
 		}),
+		// A plugin restarts in seconds: reconnect within a few, not gRPC's
+		// default two minutes of backoff.
+		grpc.WithConnectParams(grpc.ConnectParams{Backoff: backoff.Config{
+			//nolint:mnd // gRPC's defaults
+			BaseDelay: 100 * time.Millisecond, Multiplier: 1.6, Jitter: 0.2, MaxDelay: reconnectMax,
+		}, MinConnectTimeout: keepaliveTimeout}),
 	}
 	for _, opt := range opts {
 		opt(&dial)
@@ -227,6 +237,10 @@ func (c *Client) Target() string { return c.target }
 func (c *Client) Health(ctx context.Context) error {
 	res, err := c.health.Check(ctx, &healthpb.HealthCheckRequest{Service: ServiceName})
 	if err != nil {
+		// Try again now rather than after the backoff: a probe is the
+		// moment someone wants to know.
+		c.conn.ResetConnectBackoff()
+
 		return fmt.Errorf("plugin %s: health: %w", c.target, err)
 	}
 
@@ -272,7 +286,7 @@ func descriptor(d *pluginv1.DescribeResponse) provider.Descriptor {
 func (c *Client) Check(ctx context.Context, ch provider.Channel) error {
 	res, err := c.api.Check(ctx, &pluginv1.CheckRequest{Channel: &pluginv1.Channel{Name: ch.Name, Settings: ch.Settings}})
 	if err != nil {
-		return fmt.Errorf("plugin: check: %w", err)
+		return c.transport("check", err)
 	}
 
 	return errorOf(res.GetFailure())
@@ -285,7 +299,7 @@ func (c *Client) Send(ctx context.Context, d provider.Delivery) ([]byte, error) 
 		IdempotencyKey: d.IdempotencyKey, Attempt: int32(min(d.Attempt, math.MaxInt32)), //nolint:gosec // bounded
 	})
 	if err != nil {
-		return nil, fmt.Errorf("plugin: send: %w", err)
+		return nil, c.transport("send", err)
 	}
 
 	if f := res.GetFailure(); f != nil {
@@ -293,6 +307,30 @@ func (c *Client) Send(ctx context.Context, d provider.Delivery) ([]byte, error) 
 	}
 
 	return res.GetResult(), nil
+}
+
+// transport is a failed call to the plugin as a provider.Error: the
+// plugin unreachable, overloaded or slow is retried; one that does not
+// implement the call or refuses its shape is final, as retrying the same
+// call cannot help.
+func (c *Client) transport(call string, err error) error {
+	st, _ := status.FromError(err)
+	out := &provider.Error{
+		Code:    "PLUGIN_" + st.Code().String(),
+		Message: fmt.Sprintf("plugin %s: %s: %s", c.target, call, st.Message()),
+	}
+
+	switch st.Code() { //nolint:exhaustive // the rest is retried
+	case codes.Unimplemented, codes.InvalidArgument, codes.FailedPrecondition, codes.PermissionDenied,
+		codes.Unauthenticated, codes.OutOfRange:
+		out.Permanent = true
+	case codes.Unavailable:
+		out.Message = fmt.Sprintf("plugin %s is not reachable: %s", c.target, st.Message())
+	case codes.DeadlineExceeded:
+		out.Message = fmt.Sprintf("plugin %s did not answer in time", c.target)
+	}
+
+	return out
 }
 
 func errorOf(f *pluginv1.Failure) error {

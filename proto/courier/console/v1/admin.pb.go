@@ -127,7 +127,11 @@ type Channel struct {
 	RatePerMinute int32                `protobuf:"varint,7,opt,name=rate_per_minute,json=ratePerMinute,proto3" json:"rate_per_minute,omitempty"`
 	Timeout       *durationpb.Duration `protobuf:"bytes,8,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	// The channel its kind's activities use when a message names none.
-	Default       bool `protobuf:"varint,9,opt,name=default,proto3" json:"default,omitempty"`
+	Default bool `protobuf:"varint,9,opt,name=default,proto3" json:"default,omitempty"`
+	// A plugin channel's state: empty while the plugin is reachable,
+	// serving and describing the contract courier started with; else why
+	// not (courier is not ready meanwhile).
+	Problem       string `protobuf:"bytes,10,opt,name=problem,proto3" json:"problem,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,6 +227,13 @@ func (x *Channel) GetDefault() bool {
 		return x.Default
 	}
 	return false
+}
+
+func (x *Channel) GetProblem() string {
+	if x != nil {
+		return x.Problem
+	}
+	return ""
 }
 
 type CheckChannelRequest struct {
@@ -337,7 +348,7 @@ const file_proto_courier_console_v1_admin_proto_rawDesc = "" +
 	"\x13ListChannelsRequest\"h\n" +
 	"\x14ListChannelsResponse\x127\n" +
 	"\bchannels\x18\x01 \x03(\v2\x1b.courier.console.v1.ChannelR\bchannels\x12\x17\n" +
-	"\adry_run\x18\x02 \x01(\bR\x06dryRun\"\xf0\x02\n" +
+	"\adry_run\x18\x02 \x01(\bR\x06dryRun\"\x8a\x03\n" +
 	"\aChannel\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x16\n" +
@@ -347,7 +358,9 @@ const file_proto_courier_console_v1_admin_proto_rawDesc = "" +
 	"\x04pool\x18\x06 \x01(\x05R\x04pool\x12&\n" +
 	"\x0frate_per_minute\x18\a \x01(\x05R\rratePerMinute\x123\n" +
 	"\atimeout\x18\b \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x18\n" +
-	"\adefault\x18\t \x01(\bR\adefault\x1a:\n" +
+	"\adefault\x18\t \x01(\bR\adefault\x12\x18\n" +
+	"\aproblem\x18\n" +
+	" \x01(\tR\aproblem\x1a:\n" +
 	"\fDetailsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\")\n" +

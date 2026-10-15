@@ -21,6 +21,7 @@ import (
 	"github.com/backplane-labs/backplane/pkg/backplane/drivers/standard"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/backplane-labs/backplane-courier/internal/admin"
 	"github.com/backplane-labs/backplane-courier/internal/channels"
@@ -209,7 +210,10 @@ func (st *State) extensions(
 			return nil, fmt.Errorf("%w: %q", ErrProviderName, name)
 		}
 
-		out[name] = &channels.Extension{Name: name, Provider: client, Descriptor: d, Plugin: true}
+		dep := pluginDependency{name: name, client: client, want: d}
+		deps.NewDependency[*plugin.Client](root, dep)
+
+		out[name] = &channels.Extension{Name: name, Provider: client, Descriptor: d, Plugin: true, Health: dep.check}
 	}
 
 	return out, nil
@@ -217,7 +221,7 @@ func (st *State) extensions(
 
 // dial connects a plugin and makes it a required dependency: its gRPC
 // health is part of courier's readiness, its connection closed at stop.
-func (st *State) dial(root backplane.Root[Config], name string, spec channels.Plugin) (*plugin.Client, error) {
+func (st *State) dial(_ backplane.Root[Config], name string, spec channels.Plugin) (*plugin.Client, error) {
 	var opts []plugin.DialOption
 
 	if spec.TLS.Enabled {
@@ -235,15 +239,40 @@ func (st *State) dial(root backplane.Root[Config], name string, spec channels.Pl
 	}
 
 	st.plugins = append(st.plugins, client)
-	deps.NewDependency[*plugin.Client](root, pluginDependency{name: name, client: client})
 
 	return client, nil
 }
 
-// pluginDependency is a dialed plugin as a dependency of courier.
+// pluginDependency is a dialed plugin as a dependency of courier: ready
+// while its gRPC health serves and it still describes the contract
+// courier declared its activity with.
 type pluginDependency struct {
 	name   string
 	client *plugin.Client
+	want   provider.Descriptor
+}
+
+// ErrContractChanged: the plugin now describes another kind or other
+// schemas than courier declared at startup.
+var ErrContractChanged = errors.New("changed its contract since courier started: restart courier to take it")
+
+// check is the plugin's health and contract.
+func (p pluginDependency) check(ctx context.Context) error {
+	if err := p.client.Health(ctx); err != nil {
+		return err //nolint:wrapcheck // names the plugin
+	}
+
+	got, err := p.client.Describe(ctx)
+	if err != nil {
+		return err //nolint:wrapcheck // names the plugin
+	}
+
+	if got.Kind != p.want.Kind || !proto.Equal(got.Message, p.want.Message) || !proto.Equal(got.Result, p.want.Result) ||
+		!proto.Equal(got.Settings, p.want.Settings) {
+		return fmt.Errorf("plugin %q (%s) %w", p.name, p.client.Target(), ErrContractChanged)
+	}
+
+	return nil
 }
 
 func (p pluginDependency) Name() string { return "plugin-" + p.name }
@@ -252,9 +281,7 @@ func (p pluginDependency) Provide(context.Context, deps.Scope) (*plugin.Client, 
 	return p.client, nil
 }
 
-func (p pluginDependency) Probe(ctx context.Context, c *plugin.Client) error {
-	return c.Health(ctx) //nolint:wrapcheck // names the plugin
-}
+func (p pluginDependency) Probe(ctx context.Context, _ *plugin.Client) error { return p.check(ctx) }
 
 func (p pluginDependency) Close(context.Context, *plugin.Client) error {
 	return p.client.Close() //nolint:wrapcheck // gRPC's own error

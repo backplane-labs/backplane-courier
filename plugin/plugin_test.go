@@ -5,8 +5,11 @@ import (
 	"errors"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc"
 
 	"github.com/backplane-labs/backplane-courier/plugin"
 	"github.com/backplane-labs/backplane-courier/provider"
@@ -76,18 +79,34 @@ func TestPlugin(t *testing.T) {
 		t.Fatalf("send: %s %v", out, err)
 	}
 
-	var pe *provider.Error
-	if _, err := client.Send(t.Context(), provider.Delivery{Attempt: 2}); !errors.As(err, &pe) || pe.RetryAfter != 3*time.Second || pe.Permanent {
+	var perr *provider.Error
+	if _, err := client.Send(t.Context(), provider.Delivery{Attempt: 2}); !errors.As(err, &perr) || perr.RetryAfter != 3*time.Second || perr.Permanent {
 		t.Fatalf("later: %v", err)
 	}
 
-	if err := client.Check(t.Context(), provider.Channel{}); !errors.As(err, &pe) || !pe.Permanent || pe.Code != "AUTH" {
+	if err := client.Check(t.Context(), provider.Channel{}); !errors.As(err, &perr) || !perr.Permanent || perr.Code != "AUTH" {
 		t.Fatalf("check: %v", err)
 	}
 
 	stop()
 
+	// Gone: a retryable failure that says so.
 	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		_, err := client.Send(t.Context(), provider.Delivery{Attempt: 1})
+		if errors.As(err, &perr) && !perr.Permanent && perr.Code == "PLUGIN_Unavailable" && strings.Contains(perr.Message, "not reachable") {
+			break
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("down: %v", err)
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	deadline = time.Now().Add(5 * time.Second)
 	for client.Health(t.Context()) == nil {
 		if time.Now().After(deadline) {
 			t.Fatal("healthy after it stopped")
@@ -95,4 +114,92 @@ func TestPlugin(t *testing.T) {
 
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+// A server that is not a courier plugin: the call is final, not retried.
+func TestNotAPlugin(t *testing.T) {
+	t.Parallel()
+
+	socket := filepath.Join(t.TempDir(), "x.sock")
+
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := grpc.NewServer()
+
+	go func() { _ = srv.Serve(lis) }()
+
+	t.Cleanup(srv.Stop)
+
+	client, err := plugin.Dial("unix://" + socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	var perr *provider.Error
+	if _, err := client.Send(t.Context(), provider.Delivery{Attempt: 1}); !errors.As(err, &perr) || !perr.Permanent || perr.Code != "PLUGIN_Unimplemented" {
+		t.Fatalf("unimplemented: %v", err)
+	}
+}
+
+// A plugin that comes back is served again within seconds.
+func TestReconnect(t *testing.T) {
+	t.Parallel()
+
+	socket := filepath.Join(t.TempDir(), "r.sock")
+
+	serve := func() context.CancelFunc {
+		ctx, stop := context.WithCancel(context.Background())
+
+		lis, err := (&net.ListenConfig{}).Listen(ctx, "unix", socket)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		go func() { _ = plugin.ServeListener(ctx, lis, echo{}) }()
+
+		return stop
+	}
+
+	stop := serve()
+
+	client, err := plugin.Dial("unix://" + socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	waitHealth := func(ok bool) {
+		t.Helper()
+
+		deadline := time.Now().Add(6 * time.Second)
+		for (client.Health(t.Context()) == nil) != ok {
+			if time.Now().After(deadline) {
+				t.Fatalf("health not %v", ok)
+			}
+
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	waitHealth(true)
+	stop()
+	waitHealth(false)
+
+	// Several failed probes grow gRPC's backoff; the plugin comes back.
+	for range 10 {
+		_ = client.Health(t.Context())
+	}
+
+	time.Sleep(time.Second)
+
+	stop = serve()
+	defer stop()
+
+	waitHealth(true)
 }

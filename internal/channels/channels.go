@@ -36,8 +36,11 @@ type Extension struct {
 	Name       string
 	Provider   provider.Provider
 	Descriptor provider.Descriptor
-	// Plugin: it runs as its own process; false: compiled in.
+	// Plugin: it runs as its own service; false: compiled in.
 	Plugin bool
+	// Health of a plugin: reachable, serving, same contract; nil for a
+	// compiled-in provider.
+	Health func(ctx context.Context) error
 }
 
 // Channel at run time.

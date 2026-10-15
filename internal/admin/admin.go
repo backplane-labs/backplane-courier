@@ -25,6 +25,9 @@ import (
 	"github.com/backplane-labs/backplane-courier/provider"
 )
 
+// healthTimeout bounds asking a plugin how it is, per channel listed.
+const healthTimeout = 2 * time.Second
+
 // Admin serves AdminService.
 type Admin struct {
 	courierconsolev1.UnimplementedAdminServiceServer
@@ -41,7 +44,7 @@ func New(parent deps.Scope, chs *channels.Channels, dryRun config.Live[bool]) *A
 
 // ListChannels implements AdminService.
 func (a *Admin) ListChannels(
-	_ context.Context, _ *courierconsolev1.ListChannelsRequest,
+	ctx context.Context, _ *courierconsolev1.ListChannelsRequest,
 ) (*courierconsolev1.ListChannelsResponse, error) {
 	out := &courierconsolev1.ListChannelsResponse{DryRun: a.dryRun.Get()}
 
@@ -53,8 +56,17 @@ func (a *Admin) ListChannels(
 			Timeout:       durationpb.New(ch.Spec.Timeout), Default: a.channels.IsDefault(ch),
 		}
 
-		if ch.Extension != nil {
+		if ch.Extension != nil && ch.Extension.Plugin {
 			item.Plugin = ch.Provider
+
+			if ch.Extension.Health != nil {
+				hctx, cancel := context.WithTimeout(ctx, healthTimeout)
+				if err := ch.Extension.Health(hctx); err != nil {
+					item.Problem = err.Error()
+				}
+
+				cancel()
+			}
 		}
 
 		out.Channels = append(out.Channels, item)
