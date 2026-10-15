@@ -1,0 +1,21 @@
+# TypeScript client of the console API for the module (make gen); the Go code
+# of every proto comes from easyp.yaml.
+lint:
+  use:
+    - DEFAULT
+  service_suffix: Service
+  allow_comment_ignores: false
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+deps:
+  - github.com/gopherex/schemapb@v1.7.0
+generate:
+  inputs:
+    - directory: proto/courier/console
+  plugins:
+    - name: es
+      out: web/src/gen
+      opts:
+        target: ts
+    - name: ws-es
+      out: web/src/gen

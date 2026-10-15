@@ -1,0 +1,10 @@
+/* Standalone shell of the template (also used by the SDK compatibility
+   fixture). Only the frame is styled here; pages use kit compositions. */
+body { margin: 0; background: var(--background); color: var(--foreground); font: 13px/20px var(--font-sans); -webkit-font-smoothing: antialiased; }
+#root > header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--chrome); }
+#root > header nav { display: flex; gap: 2px; }
+#root > header nav a { padding: 4px 10px; border-radius: var(--radius); color: var(--muted-foreground); text-decoration: none; }
+#root > header nav a:hover, #root > header nav a[aria-current=page] { color: var(--foreground); background: var(--raised); }
+#root > header > button { margin-left: auto; }
+#root > main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.module-brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }

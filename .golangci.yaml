@@ -1,0 +1,360 @@
+version: "2"
+run:
+  go: "1.26"
+output:
+  formats:
+    text:
+      path: stdout
+  sort-order:
+    - linter
+    - severity
+    - file
+linters:
+  default: none
+  enable:
+    - asasalint
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - cyclop
+    - decorder
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - err113
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - gochecknoinits
+    - gochecksumtype
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - govet
+    - grouper
+    - inamedparam
+    - ineffassign
+    - interfacebloat
+    - intrange
+    - ireturn
+    - lll
+    - loggercheck
+    - maintidx
+    - makezero
+    - mirror
+    - misspell
+    - mnd
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagalign
+    - tagliatelle
+    - testableexamples
+    - testifylint
+    - testpackage
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - varnamelen
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - wsl_v5
+  settings:
+    errcheck:
+      check-type-assertions: true
+    exhaustive:
+      # maps here are partial by design (message templates, format
+      # extensions); only switches must be exhaustive.
+      check:
+        - switch
+      default-signifies-exhaustive: true
+    cyclop:
+      max-complexity: 15
+    funlen:
+      lines: 75
+    gocognit:
+      min-complexity: 30
+    gocritic:
+      disabled-checks:
+        # Immutable values (config blocks, identities, route decls) are passed
+        # by value on purpose: no nil, safe zero value, no aliasing.
+        - hugeParam
+        - dupImport
+        - octalLiteral
+        - whyNoLint
+        # contradicts nonamedreturns, which we keep
+        - unnamedResult
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+        - opinionated
+      settings:
+        captLocal:
+          paramsOnly: false
+        underef:
+          skipRecvDeref: false
+    govet:
+      disable:
+        - fieldalignment
+      enable-all: true
+      settings:
+        shadow:
+          strict: true
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+        # Option interfaces are how options are checked at compile time: each
+        # constructor returns exactly the set of interfaces it applies to.
+        - github.com/backplane-labs/backplane/pkg/backplane/.*Option$
+        - google.golang.org/grpc/health/grpc_health_v1.HealthServer
+        - github.com/gopherex/xconf.Source
+        - github.com/backplane-labs/backplane/pkg/backplane/internal/configrt.State
+        - github.com/nats-io/nats.go/jetstream.ConsumeContext
+        - google.golang.org/protobuf/proto.Message
+        # The installed transport and the tree's readiness are interfaces by
+        # nature: whatever carries events, whatever composite of probes.
+        - github.com/backplane-labs/backplane/pkg/backplane/internal/env.Broker
+        - github.com/backplane-labs/backplane/pkg/backplane/internal/env.Caller
+        # Temporal's client and logger are interfaces by the SDK's design.
+        - go.temporal.io/sdk/client.Client
+        - go.temporal.io/sdk/log.Logger
+        - github.com/gopherex/xprobe/pkg/probe.Probe
+        # A component exposes its OpenTelemetry tracer and meter as is.
+        - go.opentelemetry.io/otel/trace.Tracer
+        - go.opentelemetry.io/otel/metric.Meter
+        # CEL values and compiled programs are interfaces by cel-go's design.
+        - github.com/google/cel-go/common/types/ref.Val
+        - github.com/google/cel-go/cel.Program
+        # The console's runs service, a Nexus operation, a workflow future
+        # and the registry catalog are interfaces by their SDKs' design.
+        - github.com/backplane-labs/backplane/backplanepb/console/v1.WorkflowServiceServer
+        - github.com/nexus-rpc/sdk-go/nexus.RegisterableOperation
+        - go.temporal.io/sdk/workflow.Future
+        - go.temporal.io/sdk/workflow.Context
+        - github.com/backplane-labs/backplane/internal/bindings.Catalog
+        # JetStream's client and consumers are interfaces by nats.go's design.
+        - github.com/nats-io/nats.go/jetstream.JetStream
+        - github.com/nats-io/nats.go/jetstream.Consumer
+    lll:
+      line-length: 120
+    misspell:
+      locale: US
+      # CANCELLED — имя pb-константы (wire-контракт), переименованию не подлежит.
+      ignore-rules:
+        - cancelled
+    nakedret:
+      max-func-lines: 0
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-no-explanation:
+        - funlen
+        - gocognit
+        - lll
+      allow-unused: false
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+    varnamelen:
+      max-distance: 5
+      min-name-length: 3
+      check-receiver: false
+      check-return: false
+      check-type-param: false
+      # engine idiom: one-letter names for the pervasive schema/field/value
+      # locals mirror the proto vocabulary and stay within max-distance.
+      ignore-names:
+        - fn
+        - w
+        - h
+        - ln
+        - ui
+        - fd
+        - db
+        - on
+        - wo
+        - cc
+        - ws
+        - kv
+        - err
+        - tc
+        - ok
+        - f
+        - s
+        - k
+        - v
+        - m
+        - b
+        - l
+        - o
+        - r
+        - d
+        - e
+        - n
+        - x
+        - a
+        - p
+        - id
+        - ns
+        - ch
+        - oo
+        - mp
+        - vs
+        - el
+        - it
+        - re
+        - st
+        - en
+        - t
+        - c
+        - g
+        - j
+        - sv
+        - ks
+        - pg
+        - rf
+        - ph
+        - gt
+        - lt
+        - mk
+        - vm
+        - ts
+        - ai
+        - bi
+        - in
+        - dv
+        - rt
+      ignore-type-assert-ok: false
+      ignore-map-index-ok: false
+      ignore-chan-recv-ok: false
+      ignore-decls:
+        - t testing.T
+        - f *foo.Bar
+        - e error
+        - i int
+        - const C
+        - T any
+        - m map[string]int
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Transport adapters hand errors back to the transport unchanged:
+      # handlers compare io.EOF directly and gRPC statuses must survive.
+      - linters:
+          - wrapcheck
+        path: (pkg/backplane/wsproto/registrar\.go|pkg/backplane/config/source\.go)
+      - linters:
+          - lll
+        source: ^//\s*go:generate\s
+      - linters:
+          - godot
+        source: (noinspection|TODO)
+      - linters:
+          - gocritic
+        source: //noinspection
+      - linters:
+          - errorlint
+        source: ^\s+if _, ok := err\.\([^.]+\.InternalError\); ok {
+      - linters:
+          - bodyclose
+          - containedctx
+          - dupl
+          - err113
+          - errcheck
+          - forcetypeassert
+          - funlen
+          - goconst
+          - gosec
+          - noctx
+          - wrapcheck
+          - gochecknoglobals
+          - cyclop
+          - gocognit
+          - gocyclo
+          - lll
+          - maintidx
+        path: _test\.go
+      - linters:
+          - govet
+        text: 'shadow: declaration of "(err|ctx)" shadows declaration at'
+    paths:
+      - \.pb\.go$
+      - third_party$
+      - builtin$
+issues:
+  max-same-issues: 50
+formatters:
+  enable:
+    - gci
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      module-path: github.com/backplane-labs/backplane
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/gopherex)
+        - localmodule
+      custom-order: true
+  exclusions:
+    generated: lax

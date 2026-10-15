@@ -1,0 +1,14 @@
+*.test
+*.out
+coverage.*
+go.work
+go.work.sum
+.env
+.idea/
+bin/
+
+# console module
+web/node_modules/
+web/dist/
+internal/ui/dist/*
+!internal/ui/dist/.keep

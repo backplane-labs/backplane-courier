@@ -1,0 +1,9 @@
+# Development configuration (make run): every kind to the log, plus the
+# example SMS plugin (go run ./examples/smsplugin) on its default socket.
+channels:
+  mail: {log: {kind: mail}}
+  push: {log: {kind: push}}
+  sms:
+    provider: {name: sms, settings: {sender: Shop}, secrets: {token: dev-token}}
+plugins:
+  sms: {address: "unix:///tmp/courier-sms.sock"}

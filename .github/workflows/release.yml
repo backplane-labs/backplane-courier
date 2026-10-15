@@ -1,0 +1,127 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      GOWORK: 'off'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: version
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_VERSION#v}"
+          [[ "$version" =~ ^[01]\.[0-9]+\.[0-9]+$ ]] || exit 1
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Require successful CI for this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for attempt in $(seq 1 60); do
+            result="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --event push --json status,conclusion --jq '.[0] | [.status, .conclusion] | join(":")')"
+            case "$result" in
+              completed:success) exit 0 ;;
+              completed:*) echo "Commit CI is $result" >&2; exit 1 ;;
+            esac
+            sleep 5
+          done
+          echo 'No successful push CI for the release commit. Push the branch before its tag.' >&2
+          exit 1
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@backplane-labs'
+      - run: corepack enable && corepack prepare yarn@1.22.22 --activate
+      - name: Build the console module
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: make configure-web web
+      - name: Build Linux binaries
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          pkg=github.com/backplane-labs/backplane/pkg/backplane/build
+          commit="$(git rev-parse HEAD)"; built="$(git show -s --format=%cI HEAD)"
+          for arch in amd64 arm64; do
+            mkdir -p "bin/release/linux_$arch/bin"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath \
+              -ldflags="-s -w -X $pkg.Service=courier -X $pkg.Version=$RELEASE_VERSION -X $pkg.Commit=$commit -X $pkg.Date=$built" \
+              -o "bin/release/linux_$arch/bin/courier" ./cmd/courier
+            cp LICENSE "bin/release/linux_$arch/LICENSE"
+            tar -czf "bin/release/backplane-courier_${RELEASE_VERSION}_linux_${arch}.tar.gz" -C "bin/release/linux_$arch" .
+          done
+          (cd bin/release && sha256sum ./*.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-files
+          path: bin/release/
+          retention-days: 7
+
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-files
+          path: bin/release
+      - run: chmod +x bin/release/linux_*/bin/courier
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: bin/release
+          file: deployments/Dockerfile.release
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ needs.build.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.build.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+
+  publish:
+    needs: [build, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-files
+          path: bin/release
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --title "v$VERSION" --generate-notes bin/release/*.tar.gz bin/release/SHA256SUMS

@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package courier.plugin.v1;
+
+import "google/protobuf/duration.proto";
+import "schemapb/schema.proto";
+
+option go_package = "github.com/backplane-labs/backplane-courier/proto/courier/plugin/v1;pluginv1";
+
+// ProviderService is what a courier plugin implements: one delivery
+// provider courier does not know (an SMS gateway, a messenger, a
+// webhook). Courier dials the plugin at its configured address (where
+// and how it runs is the deployment's concern), asks Describe once at
+// startup, declares the activity Send<Kind> with the
+// message schema the plugin gives, and calls Send for every delivery.
+// The contract evolves as protobuf does: new fields are added, numbers
+// are never reused; an incompatible change is a new package.
+service ProviderService {
+  // What the plugin delivers and the shapes of its settings and messages.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+  // Checks a channel's settings against the provider without delivering:
+  // credentials, account, reachability. Courier calls it at startup and
+  // when an operator checks the channel in the console.
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // Delivers one message through a channel.
+  rpc Send(SendRequest) returns (SendResponse);
+}
+
+message DescribeRequest {}
+
+message DescribeResponse {
+  // The provider's kind: [a-z][a-z0-9_]*, e.g. smsc; the activity is
+  // Send<Kind> in CamelCase (SendSmsc).
+  string kind = 1;
+  // What the activity does, for the console.
+  string description = 2;
+  // A channel's settings: courier validates a channel against it at
+  // startup; fields marked secret are masked wherever courier shows them.
+  schemapb.Schema settings = 3;
+  // A message: the activity's input (courier adds an optional channel
+  // field naming which channel of this kind delivers it).
+  schemapb.Schema message = 4;
+  // What Send answers, the activity's output; unset: {id}.
+  schemapb.Schema result = 5;
+}
+
+// Channel is one configured channel of the plugin's kind.
+message Channel {
+  string name = 1;
+  // The settings as JSON, validated against DescribeResponse.settings.
+  bytes settings = 2;
+}
+
+message CheckRequest {
+  Channel channel = 1;
+}
+
+message CheckResponse {
+  // Empty when the channel works; else what is wrong.
+  Failure failure = 1;
+}
+
+message SendRequest {
+  Channel channel = 1;
+  // The message as JSON, validated against DescribeResponse.message.
+  bytes message = 2;
+  // The same for every attempt of one delivery: what the plugin passes to
+  // its provider as an idempotency key when the provider takes one.
+  string idempotency_key = 3;
+  // 1 for the first attempt.
+  int32 attempt = 4;
+}
+
+message SendResponse {
+  oneof outcome {
+    // The result as JSON, matching DescribeResponse.result.
+    bytes result = 1;
+    Failure failure = 2;
+  }
+}
+
+// Failure is why a delivery or a check did not work.
+message Failure {
+  string message = 1;
+  // The provider's own code, for the audit record.
+  string code = 2;
+  // Retrying cannot help: the message or the recipient is wrong.
+  bool permanent = 3;
+  // The provider asked to wait this long before the next attempt.
+  google.protobuf.Duration retry_after = 4;
+}

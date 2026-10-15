@@ -1,0 +1,24 @@
+# Proto lint and Go code of courier's protos (the plugin contract, the console
+# API). Run through `make gen`; the module's TypeScript client comes from
+# easyp.web.yaml.
+lint:
+  use:
+    - DEFAULT
+  service_suffix: Service
+  allow_comment_ignores: false
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+deps:
+  - github.com/gopherex/schemapb@v1.7.0
+generate:
+  inputs:
+    - directory: proto
+  plugins:
+    - name: go
+      out: .
+      opts:
+        paths: source_relative
+    - name: go-grpc
+      out: .
+      opts:
+        paths: source_relative
