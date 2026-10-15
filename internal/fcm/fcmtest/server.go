@@ -98,7 +98,7 @@ func (s *Server) subscriptions(w http.ResponseWriter, r *http.Request) {
 		Tokens []string `json:"registration_tokens"`
 	}
 
-	auth := r.Header.Get("access_token_auth")
+	auth := r.Header.Get("access_token_auth") //nolint:canonicalheader // the IID API's name
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || auth != "true" {
 		http.Error(w, "bad request", http.StatusBadRequest)
 
