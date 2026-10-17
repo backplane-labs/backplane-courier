@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { WsTransport } from "@gopherex/ws-proto-transport";
-import type { CheckChannelRequest, CheckChannelResponse, ListChannelsRequest, ListChannelsResponse } from "./admin_pb";
+import type { CheckChannelRequest, CheckChannelResponse, GenerateWebPushKeysRequest, GenerateWebPushKeysResponse, ListChannelsRequest, ListChannelsResponse, TestWebPushRequest, TestWebPushResponse } from "./admin_pb";
 export interface CallOptions {
     /** Request metadata sent as headers on the opening frame. */
     headers?: Record<string, string>;
@@ -39,4 +39,18 @@ export declare class AdminServiceClient {
      * @generated from rpc courier.console.v1.AdminService.CheckChannel
      */
     checkChannel(req: CheckChannelRequest, options?: CallOptions): Promise<CheckChannelResponse>;
+    /**
+     * A fresh VAPID key pair for a webpush channel's configuration; courier
+     * keeps nothing.
+     *
+     * @generated from rpc courier.console.v1.AdminService.GenerateWebPushKeys
+     */
+    generateWebPushKeys(req: GenerateWebPushKeysRequest, options?: CallOptions): Promise<GenerateWebPushKeysResponse>;
+    /**
+     * Sends a Web Push through a webpush channel to a subscription pasted
+     * from a browser; an audit record like any delivery.
+     *
+     * @generated from rpc courier.console.v1.AdminService.TestWebPush
+     */
+    testWebPush(req: TestWebPushRequest, options?: CallOptions): Promise<TestWebPushResponse>;
 }

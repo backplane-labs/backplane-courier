@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file proto/courier/console/v1/admin.proto.
  */
 export const file_proto_courier_console_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("CiRwcm90by9jb3VyaWVyL2NvbnNvbGUvdjEvYWRtaW4ucHJvdG8SEmNvdXJpZXIuY29uc29sZS52MSIVChNMaXN0Q2hhbm5lbHNSZXF1ZXN0IlYKFExpc3RDaGFubmVsc1Jlc3BvbnNlEi0KCGNoYW5uZWxzGAEgAygLMhsuY291cmllci5jb25zb2xlLnYxLkNoYW5uZWwSDwoHZHJ5X3J1bhgCIAEoCCKnAgoHQ2hhbm5lbBIMCgRuYW1lGAEgASgJEgwKBGtpbmQYAiABKAkSDgoGcGx1Z2luGAMgASgJEhAKCGFjdGl2aXR5GAQgASgJEjkKB2RldGFpbHMYBSADKAsyKC5jb3VyaWVyLmNvbnNvbGUudjEuQ2hhbm5lbC5EZXRhaWxzRW50cnkSDAoEcG9vbBgGIAEoBRIXCg9yYXRlX3Blcl9taW51dGUYByABKAUSKgoHdGltZW91dBgIIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIPCgdkZWZhdWx0GAkgASgIEg8KB3Byb2JsZW0YCiABKAkaLgoMRGV0YWlsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiIwoTQ2hlY2tDaGFubmVsUmVxdWVzdBIMCgRuYW1lGAEgASgJIloKFENoZWNrQ2hhbm5lbFJlc3BvbnNlEgoKAm9rGAEgASgIEg0KBWVycm9yGAIgASgJEicKBHRvb2sYAyABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24y1AEKDEFkbWluU2VydmljZRJhCgxMaXN0Q2hhbm5lbHMSJy5jb3VyaWVyLmNvbnNvbGUudjEuTGlzdENoYW5uZWxzUmVxdWVzdBooLmNvdXJpZXIuY29uc29sZS52MS5MaXN0Q2hhbm5lbHNSZXNwb25zZRJhCgxDaGVja0NoYW5uZWwSJy5jb3VyaWVyLmNvbnNvbGUudjEuQ2hlY2tDaGFubmVsUmVxdWVzdBooLmNvdXJpZXIuY29uc29sZS52MS5DaGVja0NoYW5uZWxSZXNwb25zZUJXWlVnaXRodWIuY29tL2JhY2twbGFuZS1sYWJzL2JhY2twbGFuZS1jb3VyaWVyL3Byb3RvL2NvdXJpZXIvY29uc29sZS92MTtjb3VyaWVyY29uc29sZXYxYgZwcm90bzM", [file_google_protobuf_duration]);
+  fileDesc("CiRwcm90by9jb3VyaWVyL2NvbnNvbGUvdjEvYWRtaW4ucHJvdG8SEmNvdXJpZXIuY29uc29sZS52MSIVChNMaXN0Q2hhbm5lbHNSZXF1ZXN0IlYKFExpc3RDaGFubmVsc1Jlc3BvbnNlEi0KCGNoYW5uZWxzGAEgAygLMhsuY291cmllci5jb25zb2xlLnYxLkNoYW5uZWwSDwoHZHJ5X3J1bhgCIAEoCCKnAgoHQ2hhbm5lbBIMCgRuYW1lGAEgASgJEgwKBGtpbmQYAiABKAkSDgoGcGx1Z2luGAMgASgJEhAKCGFjdGl2aXR5GAQgASgJEjkKB2RldGFpbHMYBSADKAsyKC5jb3VyaWVyLmNvbnNvbGUudjEuQ2hhbm5lbC5EZXRhaWxzRW50cnkSDAoEcG9vbBgGIAEoBRIXCg9yYXRlX3Blcl9taW51dGUYByABKAUSKgoHdGltZW91dBgIIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIPCgdkZWZhdWx0GAkgASgIEg8KB3Byb2JsZW0YCiABKAkaLgoMRGV0YWlsc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiIwoTQ2hlY2tDaGFubmVsUmVxdWVzdBIMCgRuYW1lGAEgASgJIloKFENoZWNrQ2hhbm5lbFJlc3BvbnNlEgoKAm9rGAEgASgIEg0KBWVycm9yGAIgASgJEicKBHRvb2sYAyABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24iHAoaR2VuZXJhdGVXZWJQdXNoS2V5c1JlcXVlc3QiRgobR2VuZXJhdGVXZWJQdXNoS2V5c1Jlc3BvbnNlEhIKCnB1YmxpY19rZXkYASABKAkSEwoLcHJpdmF0ZV9rZXkYAiABKAkiTAoSVGVzdFdlYlB1c2hSZXF1ZXN0Eg8KB2NoYW5uZWwYASABKAkSFAoMc3Vic2NyaXB0aW9uGAIgASgJEg8KB3BheWxvYWQYAyABKAkicwoTVGVzdFdlYlB1c2hSZXNwb25zZRIKCgJvaxgBIAEoCBINCgVlcnJvchgCIAEoCRIMCgRjb2RlGAMgASgJEgoKAmlkGAQgASgJEicKBHRvb2sYBSABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24yrAMKDEFkbWluU2VydmljZRJhCgxMaXN0Q2hhbm5lbHMSJy5jb3VyaWVyLmNvbnNvbGUudjEuTGlzdENoYW5uZWxzUmVxdWVzdBooLmNvdXJpZXIuY29uc29sZS52MS5MaXN0Q2hhbm5lbHNSZXNwb25zZRJhCgxDaGVja0NoYW5uZWwSJy5jb3VyaWVyLmNvbnNvbGUudjEuQ2hlY2tDaGFubmVsUmVxdWVzdBooLmNvdXJpZXIuY29uc29sZS52MS5DaGVja0NoYW5uZWxSZXNwb25zZRJ2ChNHZW5lcmF0ZVdlYlB1c2hLZXlzEi4uY291cmllci5jb25zb2xlLnYxLkdlbmVyYXRlV2ViUHVzaEtleXNSZXF1ZXN0Gi8uY291cmllci5jb25zb2xlLnYxLkdlbmVyYXRlV2ViUHVzaEtleXNSZXNwb25zZRJeCgtUZXN0V2ViUHVzaBImLmNvdXJpZXIuY29uc29sZS52MS5UZXN0V2ViUHVzaFJlcXVlc3QaJy5jb3VyaWVyLmNvbnNvbGUudjEuVGVzdFdlYlB1c2hSZXNwb25zZUJXWlVnaXRodWIuY29tL2JhY2twbGFuZS1sYWJzL2JhY2twbGFuZS1jb3VyaWVyL3Byb3RvL2NvdXJpZXIvY29uc29sZS92MTtjb3VyaWVyY29uc29sZXYxYgZwcm90bzM", [file_google_protobuf_duration]);
 
 /**
  * @generated from message courier.console.v1.ListChannelsRequest
@@ -63,7 +63,7 @@ export type Channel = Message<"courier.console.v1.Channel"> & {
   name: string;
 
   /**
-   * smtp, fcm, log, or a plugin's kind.
+   * mail, push, webpush, or a plugin's kind.
    *
    * @generated from field: string kind = 2;
    */
@@ -174,6 +174,116 @@ export const CheckChannelResponseSchema: GenMessage<CheckChannelResponse> = /*@_
   messageDesc(file_proto_courier_console_v1_admin, 4);
 
 /**
+ * @generated from message courier.console.v1.GenerateWebPushKeysRequest
+ */
+export type GenerateWebPushKeysRequest = Message<"courier.console.v1.GenerateWebPushKeysRequest"> & {
+};
+
+/**
+ * Describes the message courier.console.v1.GenerateWebPushKeysRequest.
+ * Use `create(GenerateWebPushKeysRequestSchema)` to create a new message.
+ */
+export const GenerateWebPushKeysRequestSchema: GenMessage<GenerateWebPushKeysRequest> = /*@__PURE__*/
+  messageDesc(file_proto_courier_console_v1_admin, 5);
+
+/**
+ * @generated from message courier.console.v1.GenerateWebPushKeysResponse
+ */
+export type GenerateWebPushKeysResponse = Message<"courier.console.v1.GenerateWebPushKeysResponse"> & {
+  /**
+   * base64url: public_key goes to the channel and to browsers,
+   * private_key to the channel's secret.
+   *
+   * @generated from field: string public_key = 1;
+   */
+  publicKey: string;
+
+  /**
+   * @generated from field: string private_key = 2;
+   */
+  privateKey: string;
+};
+
+/**
+ * Describes the message courier.console.v1.GenerateWebPushKeysResponse.
+ * Use `create(GenerateWebPushKeysResponseSchema)` to create a new message.
+ */
+export const GenerateWebPushKeysResponseSchema: GenMessage<GenerateWebPushKeysResponse> = /*@__PURE__*/
+  messageDesc(file_proto_courier_console_v1_admin, 6);
+
+/**
+ * @generated from message courier.console.v1.TestWebPushRequest
+ */
+export type TestWebPushRequest = Message<"courier.console.v1.TestWebPushRequest"> & {
+  /**
+   * @generated from field: string channel = 1;
+   */
+  channel: string;
+
+  /**
+   * PushSubscription.toJSON() of a browser: {"endpoint", "keys": {"p256dh", "auth"}}.
+   *
+   * @generated from field: string subscription = 2;
+   */
+  subscription: string;
+
+  /**
+   * JSON the service worker gets.
+   *
+   * @generated from field: string payload = 3;
+   */
+  payload: string;
+};
+
+/**
+ * Describes the message courier.console.v1.TestWebPushRequest.
+ * Use `create(TestWebPushRequestSchema)` to create a new message.
+ */
+export const TestWebPushRequestSchema: GenMessage<TestWebPushRequest> = /*@__PURE__*/
+  messageDesc(file_proto_courier_console_v1_admin, 7);
+
+/**
+ * @generated from message courier.console.v1.TestWebPushResponse
+ */
+export type TestWebPushResponse = Message<"courier.console.v1.TestWebPushResponse"> & {
+  /**
+   * @generated from field: bool ok = 1;
+   */
+  ok: boolean;
+
+  /**
+   * @generated from field: string error = 2;
+   */
+  error: string;
+
+  /**
+   * The push service's code of a refusal: gone, unauthorized, too_big...
+   *
+   * @generated from field: string code = 3;
+   */
+  code: string;
+
+  /**
+   * The push service's id of the message.
+   *
+   * @generated from field: string id = 4;
+   */
+  id: string;
+
+  /**
+   * @generated from field: google.protobuf.Duration took = 5;
+   */
+  took?: Duration | undefined;
+};
+
+/**
+ * Describes the message courier.console.v1.TestWebPushResponse.
+ * Use `create(TestWebPushResponseSchema)` to create a new message.
+ */
+export const TestWebPushResponseSchema: GenMessage<TestWebPushResponse> = /*@__PURE__*/
+  messageDesc(file_proto_courier_console_v1_admin, 8);
+
+/**
  * AdminService is courier's internal API: what its console module shows
  * and does, relayed by backplane behind the operator's session.
  *
@@ -201,6 +311,28 @@ export const AdminService: GenService<{
     methodKind: "unary";
     input: typeof CheckChannelRequestSchema;
     output: typeof CheckChannelResponseSchema;
+  },
+  /**
+   * A fresh VAPID key pair for a webpush channel's configuration; courier
+   * keeps nothing.
+   *
+   * @generated from rpc courier.console.v1.AdminService.GenerateWebPushKeys
+   */
+  generateWebPushKeys: {
+    methodKind: "unary";
+    input: typeof GenerateWebPushKeysRequestSchema;
+    output: typeof GenerateWebPushKeysResponseSchema;
+  },
+  /**
+   * Sends a Web Push through a webpush channel to a subscription pasted
+   * from a browser; an audit record like any delivery.
+   *
+   * @generated from rpc courier.console.v1.AdminService.TestWebPush
+   */
+  testWebPush: {
+    methodKind: "unary";
+    input: typeof TestWebPushRequestSchema;
+    output: typeof TestWebPushResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_proto_courier_console_v1_admin, 0);

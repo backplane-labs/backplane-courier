@@ -6,10 +6,13 @@ import { useClient } from '@backplane-labs/backplane-react';
 import { definePlugin, usePluginContext, usePluginNavigate } from '@backplane-labs/backplane-plugin-sdk';
 import { ConnectionNotice, usePlatformAction, usePlatformQuery } from '@backplane-labs/backplane-platform-ui';
 import {
-  Badge, Button, EmptyState, PageHeader, Panel, Skeleton, Stack, StatusBadge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Badge, Button, EmptyState, Field, FieldDescription, FieldLabel, NativeSelect, NativeSelectOption, PageHeader, Panel, Skeleton, Stack, StatusBadge,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea,
 } from '@backplane-labs/backplane-ui';
 import { AdminServiceClient } from './gen/proto/courier/console/v1/admin_ws_pb';
-import { CheckChannelRequestSchema, ListChannelsRequestSchema, type Channel } from './gen/proto/courier/console/v1/admin_pb';
+import {
+  CheckChannelRequestSchema, GenerateWebPushKeysRequestSchema, ListChannelsRequestSchema, TestWebPushRequestSchema, type Channel,
+} from './gen/proto/courier/console/v1/admin_pb';
 import navigation from './navigation';
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
@@ -37,7 +40,54 @@ function Channels() {
         : <Table><TableHeader><TableRow><TableHead>{t('channel')}</TableHead><TableHead>{t('kind')}</TableHead><TableHead>{t('activity')}</TableHead><TableHead>{t('details')}</TableHead><TableHead>{t('limits')}</TableHead><TableHead>{t('check')}</TableHead></TableRow></TableHeader>
           <TableBody>{state.value.channels.map((channel) => <ChannelRow key={channel.name} channel={channel} />)}</TableBody></Table>}
     </Panel>
+    <WebPush channels={state.value?.channels.filter((c) => c.kind === 'webpush') ?? []} />
   </Stack>;
+}
+
+const samplePayload = JSON.stringify({ title: 'Courier test', body: 'Web Push works.' }, null, 2);
+
+/** VAPID keys for a webpush channel, and a test push to a browser's subscription. */
+function WebPush({ channels }: { channels: Channel[] }) {
+  const t = useText(), client = useClient(AdminServiceClient);
+  const keys = usePlatformAction<{ publicKey: string; privateKey: string }>();
+  const send = usePlatformAction<{ ok: boolean; error: string; code: string; took: string }>();
+  const [channel, setChannel] = useState(''), [subscription, setSubscription] = useState(''), [payload, setPayload] = useState(samplePayload);
+  const picked = channel || channels[0]?.name || '';
+  const snippet = keys.value && `channels:\n  web:\n    webpush:\n      subject: mailto:ops@example.com\n      public_key: ${keys.value.publicKey}\n      private_key: ${keys.value.privateKey}`;
+  return <Panel title={t('webPush')} footer={<span style={muted}>{t('webPushHelp')}</span>}>
+    <Stack gap={16}>
+      <Stack gap={8}>
+        <Stack direction="row" gap={8} style={{ alignItems: 'center' }}>
+          <Button size="sm" variant="outline" disabled={keys.pending || keys.disabled} onClick={() => void keys.run(async (signal) => {
+            const response = await client.generateWebPushKeys(create(GenerateWebPushKeysRequestSchema), { signal });
+            return { publicKey: response.publicKey, privateKey: response.privateKey };
+          })}>{t('generateKeys')}</Button>
+          <span style={muted}>{t('generateKeysHelp')}</span>
+        </Stack>
+        {snippet && <pre aria-label={t('generatedKeys')} style={{ ...mono, fontSize: 12, margin: 0, padding: 12, borderRadius: 6, background: 'var(--muted)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{snippet}</pre>}
+        {keys.error !== undefined && <span role="alert" style={{ color: 'var(--destructive)', fontSize: 12 }}>{t('error')}</span>}
+      </Stack>
+      {channels.length > 0 && <Stack gap={12}>
+        {channels.length > 1 && <Field><FieldLabel htmlFor="courier-webpush-channel">{t('channel')}</FieldLabel>
+          <NativeSelect id="courier-webpush-channel" size="sm" value={picked} onChange={(event) => setChannel(event.target.value)}>
+            {channels.map((c) => <NativeSelectOption key={c.name} value={c.name}>{c.name}</NativeSelectOption>)}</NativeSelect></Field>}
+        <Field><FieldLabel htmlFor="courier-webpush-subscription">{t('subscription')}</FieldLabel>
+          <Textarea id="courier-webpush-subscription" rows={4} style={mono} placeholder='{"endpoint": "https://…", "keys": {"p256dh": "…", "auth": "…"}}' value={subscription} onChange={(event) => setSubscription(event.target.value)} />
+          <FieldDescription>{t('subscriptionHelp')}</FieldDescription></Field>
+        <Field><FieldLabel htmlFor="courier-webpush-payload">{t('payload')}</FieldLabel>
+          <Textarea id="courier-webpush-payload" rows={4} style={mono} value={payload} onChange={(event) => setPayload(event.target.value)} /></Field>
+        <Stack direction="row" gap={8} style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+          <Button size="sm" disabled={!subscription.trim() || send.pending || send.disabled} onClick={() => void send.run(async (signal) => {
+            const response = await client.testWebPush(create(TestWebPushRequestSchema, { channel: picked, subscription, payload }), { signal });
+            return { ok: response.ok, error: response.error, code: response.code, took: millis(response.took) };
+          })}>{send.pending ? t('sending') : t('sendTest')}</Button>
+          {send.value && <StatusBadge tone={send.value.ok ? 'success' : 'danger'}>{send.value.ok ? t('sent', { took: send.value.took })
+            : send.value.code === 'gone' ? t('gone') : t('checkFailed', { error: send.value.error })}</StatusBadge>}
+          {send.error !== undefined && <span role="alert" style={{ color: 'var(--destructive)', fontSize: 12, overflowWrap: 'anywhere' }}>{send.error instanceof Error ? send.error.message : t('error')}</span>}
+        </Stack>
+      </Stack>}
+    </Stack>
+  </Panel>;
 }
 
 function ChannelRow({ channel }: { channel: Channel }) {

@@ -115,7 +115,7 @@ func (x *ListChannelsResponse) GetDryRun() bool {
 type Channel struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// smtp, fcm, log, or a plugin's kind.
+	// mail, push, webpush, or a plugin's kind.
 	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
 	// The plugin serving it; empty for a built-in kind.
 	Plugin string `protobuf:"bytes,3,opt,name=plugin,proto3" json:"plugin,omitempty"`
@@ -340,6 +340,236 @@ func (x *CheckChannelResponse) GetTook() *durationpb.Duration {
 	return nil
 }
 
+type GenerateWebPushKeysRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GenerateWebPushKeysRequest) Reset() {
+	*x = GenerateWebPushKeysRequest{}
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerateWebPushKeysRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerateWebPushKeysRequest) ProtoMessage() {}
+
+func (x *GenerateWebPushKeysRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerateWebPushKeysRequest.ProtoReflect.Descriptor instead.
+func (*GenerateWebPushKeysRequest) Descriptor() ([]byte, []int) {
+	return file_proto_courier_console_v1_admin_proto_rawDescGZIP(), []int{5}
+}
+
+type GenerateWebPushKeysResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// base64url: public_key goes to the channel and to browsers,
+	// private_key to the channel's secret.
+	PublicKey     string `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	PrivateKey    string `protobuf:"bytes,2,opt,name=private_key,json=privateKey,proto3" json:"private_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GenerateWebPushKeysResponse) Reset() {
+	*x = GenerateWebPushKeysResponse{}
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerateWebPushKeysResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerateWebPushKeysResponse) ProtoMessage() {}
+
+func (x *GenerateWebPushKeysResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerateWebPushKeysResponse.ProtoReflect.Descriptor instead.
+func (*GenerateWebPushKeysResponse) Descriptor() ([]byte, []int) {
+	return file_proto_courier_console_v1_admin_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GenerateWebPushKeysResponse) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+func (x *GenerateWebPushKeysResponse) GetPrivateKey() string {
+	if x != nil {
+		return x.PrivateKey
+	}
+	return ""
+}
+
+type TestWebPushRequest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Channel string                 `protobuf:"bytes,1,opt,name=channel,proto3" json:"channel,omitempty"`
+	// PushSubscription.toJSON() of a browser: {"endpoint", "keys": {"p256dh", "auth"}}.
+	Subscription string `protobuf:"bytes,2,opt,name=subscription,proto3" json:"subscription,omitempty"`
+	// JSON the service worker gets.
+	Payload       string `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestWebPushRequest) Reset() {
+	*x = TestWebPushRequest{}
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestWebPushRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestWebPushRequest) ProtoMessage() {}
+
+func (x *TestWebPushRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestWebPushRequest.ProtoReflect.Descriptor instead.
+func (*TestWebPushRequest) Descriptor() ([]byte, []int) {
+	return file_proto_courier_console_v1_admin_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *TestWebPushRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *TestWebPushRequest) GetSubscription() string {
+	if x != nil {
+		return x.Subscription
+	}
+	return ""
+}
+
+func (x *TestWebPushRequest) GetPayload() string {
+	if x != nil {
+		return x.Payload
+	}
+	return ""
+}
+
+type TestWebPushResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Ok    bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Error string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	// The push service's code of a refusal: gone, unauthorized, too_big...
+	Code string `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"`
+	// The push service's id of the message.
+	Id            string               `protobuf:"bytes,4,opt,name=id,proto3" json:"id,omitempty"`
+	Took          *durationpb.Duration `protobuf:"bytes,5,opt,name=took,proto3" json:"took,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestWebPushResponse) Reset() {
+	*x = TestWebPushResponse{}
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestWebPushResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestWebPushResponse) ProtoMessage() {}
+
+func (x *TestWebPushResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_courier_console_v1_admin_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestWebPushResponse.ProtoReflect.Descriptor instead.
+func (*TestWebPushResponse) Descriptor() ([]byte, []int) {
+	return file_proto_courier_console_v1_admin_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *TestWebPushResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *TestWebPushResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *TestWebPushResponse) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *TestWebPushResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TestWebPushResponse) GetTook() *durationpb.Duration {
+	if x != nil {
+		return x.Took
+	}
+	return nil
+}
+
 var File_proto_courier_console_v1_admin_proto protoreflect.FileDescriptor
 
 const file_proto_courier_console_v1_admin_proto_rawDesc = "" +
@@ -369,10 +599,28 @@ const file_proto_courier_console_v1_admin_proto_rawDesc = "" +
 	"\x14CheckChannelResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12-\n" +
-	"\x04took\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x04took2\xd4\x01\n" +
+	"\x04took\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x04took\"\x1c\n" +
+	"\x1aGenerateWebPushKeysRequest\"]\n" +
+	"\x1bGenerateWebPushKeysResponse\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x01 \x01(\tR\tpublicKey\x12\x1f\n" +
+	"\vprivate_key\x18\x02 \x01(\tR\n" +
+	"privateKey\"l\n" +
+	"\x12TestWebPushRequest\x12\x18\n" +
+	"\achannel\x18\x01 \x01(\tR\achannel\x12\"\n" +
+	"\fsubscription\x18\x02 \x01(\tR\fsubscription\x12\x18\n" +
+	"\apayload\x18\x03 \x01(\tR\apayload\"\x8e\x01\n" +
+	"\x13TestWebPushResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x12\n" +
+	"\x04code\x18\x03 \x01(\tR\x04code\x12\x0e\n" +
+	"\x02id\x18\x04 \x01(\tR\x02id\x12-\n" +
+	"\x04took\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x04took2\xac\x03\n" +
 	"\fAdminService\x12a\n" +
 	"\fListChannels\x12'.courier.console.v1.ListChannelsRequest\x1a(.courier.console.v1.ListChannelsResponse\x12a\n" +
-	"\fCheckChannel\x12'.courier.console.v1.CheckChannelRequest\x1a(.courier.console.v1.CheckChannelResponseBWZUgithub.com/backplane-labs/backplane-courier/proto/courier/console/v1;courierconsolev1b\x06proto3"
+	"\fCheckChannel\x12'.courier.console.v1.CheckChannelRequest\x1a(.courier.console.v1.CheckChannelResponse\x12v\n" +
+	"\x13GenerateWebPushKeys\x12..courier.console.v1.GenerateWebPushKeysRequest\x1a/.courier.console.v1.GenerateWebPushKeysResponse\x12^\n" +
+	"\vTestWebPush\x12&.courier.console.v1.TestWebPushRequest\x1a'.courier.console.v1.TestWebPushResponseBWZUgithub.com/backplane-labs/backplane-courier/proto/courier/console/v1;courierconsolev1b\x06proto3"
 
 var (
 	file_proto_courier_console_v1_admin_proto_rawDescOnce sync.Once
@@ -386,30 +634,39 @@ func file_proto_courier_console_v1_admin_proto_rawDescGZIP() []byte {
 	return file_proto_courier_console_v1_admin_proto_rawDescData
 }
 
-var file_proto_courier_console_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_proto_courier_console_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_proto_courier_console_v1_admin_proto_goTypes = []any{
-	(*ListChannelsRequest)(nil),  // 0: courier.console.v1.ListChannelsRequest
-	(*ListChannelsResponse)(nil), // 1: courier.console.v1.ListChannelsResponse
-	(*Channel)(nil),              // 2: courier.console.v1.Channel
-	(*CheckChannelRequest)(nil),  // 3: courier.console.v1.CheckChannelRequest
-	(*CheckChannelResponse)(nil), // 4: courier.console.v1.CheckChannelResponse
-	nil,                          // 5: courier.console.v1.Channel.DetailsEntry
-	(*durationpb.Duration)(nil),  // 6: google.protobuf.Duration
+	(*ListChannelsRequest)(nil),         // 0: courier.console.v1.ListChannelsRequest
+	(*ListChannelsResponse)(nil),        // 1: courier.console.v1.ListChannelsResponse
+	(*Channel)(nil),                     // 2: courier.console.v1.Channel
+	(*CheckChannelRequest)(nil),         // 3: courier.console.v1.CheckChannelRequest
+	(*CheckChannelResponse)(nil),        // 4: courier.console.v1.CheckChannelResponse
+	(*GenerateWebPushKeysRequest)(nil),  // 5: courier.console.v1.GenerateWebPushKeysRequest
+	(*GenerateWebPushKeysResponse)(nil), // 6: courier.console.v1.GenerateWebPushKeysResponse
+	(*TestWebPushRequest)(nil),          // 7: courier.console.v1.TestWebPushRequest
+	(*TestWebPushResponse)(nil),         // 8: courier.console.v1.TestWebPushResponse
+	nil,                                 // 9: courier.console.v1.Channel.DetailsEntry
+	(*durationpb.Duration)(nil),         // 10: google.protobuf.Duration
 }
 var file_proto_courier_console_v1_admin_proto_depIdxs = []int32{
-	2, // 0: courier.console.v1.ListChannelsResponse.channels:type_name -> courier.console.v1.Channel
-	5, // 1: courier.console.v1.Channel.details:type_name -> courier.console.v1.Channel.DetailsEntry
-	6, // 2: courier.console.v1.Channel.timeout:type_name -> google.protobuf.Duration
-	6, // 3: courier.console.v1.CheckChannelResponse.took:type_name -> google.protobuf.Duration
-	0, // 4: courier.console.v1.AdminService.ListChannels:input_type -> courier.console.v1.ListChannelsRequest
-	3, // 5: courier.console.v1.AdminService.CheckChannel:input_type -> courier.console.v1.CheckChannelRequest
-	1, // 6: courier.console.v1.AdminService.ListChannels:output_type -> courier.console.v1.ListChannelsResponse
-	4, // 7: courier.console.v1.AdminService.CheckChannel:output_type -> courier.console.v1.CheckChannelResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	2,  // 0: courier.console.v1.ListChannelsResponse.channels:type_name -> courier.console.v1.Channel
+	9,  // 1: courier.console.v1.Channel.details:type_name -> courier.console.v1.Channel.DetailsEntry
+	10, // 2: courier.console.v1.Channel.timeout:type_name -> google.protobuf.Duration
+	10, // 3: courier.console.v1.CheckChannelResponse.took:type_name -> google.protobuf.Duration
+	10, // 4: courier.console.v1.TestWebPushResponse.took:type_name -> google.protobuf.Duration
+	0,  // 5: courier.console.v1.AdminService.ListChannels:input_type -> courier.console.v1.ListChannelsRequest
+	3,  // 6: courier.console.v1.AdminService.CheckChannel:input_type -> courier.console.v1.CheckChannelRequest
+	5,  // 7: courier.console.v1.AdminService.GenerateWebPushKeys:input_type -> courier.console.v1.GenerateWebPushKeysRequest
+	7,  // 8: courier.console.v1.AdminService.TestWebPush:input_type -> courier.console.v1.TestWebPushRequest
+	1,  // 9: courier.console.v1.AdminService.ListChannels:output_type -> courier.console.v1.ListChannelsResponse
+	4,  // 10: courier.console.v1.AdminService.CheckChannel:output_type -> courier.console.v1.CheckChannelResponse
+	6,  // 11: courier.console.v1.AdminService.GenerateWebPushKeys:output_type -> courier.console.v1.GenerateWebPushKeysResponse
+	8,  // 12: courier.console.v1.AdminService.TestWebPush:output_type -> courier.console.v1.TestWebPushResponse
+	9,  // [9:13] is the sub-list for method output_type
+	5,  // [5:9] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_proto_courier_console_v1_admin_proto_init() }
@@ -423,7 +680,7 @@ func file_proto_courier_console_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_courier_console_v1_admin_proto_rawDesc), len(file_proto_courier_console_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

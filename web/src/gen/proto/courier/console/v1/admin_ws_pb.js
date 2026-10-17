@@ -3,7 +3,7 @@
 /* eslint-disable */
 
 import { applyUnaryCallbacks } from "@gopherex/ws-proto-transport";
-import { CheckChannelRequestSchema, CheckChannelResponseSchema, ListChannelsRequestSchema, ListChannelsResponseSchema } from "./admin_pb";
+import { CheckChannelRequestSchema, CheckChannelResponseSchema, GenerateWebPushKeysRequestSchema, GenerateWebPushKeysResponseSchema, ListChannelsRequestSchema, ListChannelsResponseSchema, TestWebPushRequestSchema, TestWebPushResponseSchema } from "./admin_pb";
 const AdminService_ListChannels = {
     typeName: "courier.console.v1.AdminService",
     name: "ListChannels",
@@ -17,6 +17,20 @@ const AdminService_CheckChannel = {
     kind: "unary",
     input: CheckChannelRequestSchema,
     output: CheckChannelResponseSchema,
+};
+const AdminService_GenerateWebPushKeys = {
+    typeName: "courier.console.v1.AdminService",
+    name: "GenerateWebPushKeys",
+    kind: "unary",
+    input: GenerateWebPushKeysRequestSchema,
+    output: GenerateWebPushKeysResponseSchema,
+};
+const AdminService_TestWebPush = {
+    typeName: "courier.console.v1.AdminService",
+    name: "TestWebPush",
+    kind: "unary",
+    input: TestWebPushRequestSchema,
+    output: TestWebPushResponseSchema,
 };
 /**
  * AdminService is courier's internal API: what its console module shows
@@ -46,6 +60,26 @@ export class AdminServiceClient {
      */
     async checkChannel(req, options) {
         const res = await this.transport.unary(AdminService_CheckChannel, req, { headers: options === null || options === void 0 ? void 0 : options.headers, signal: options === null || options === void 0 ? void 0 : options.signal, timeoutMs: options === null || options === void 0 ? void 0 : options.timeoutMs });
+        return applyUnaryCallbacks(res, options);
+    }
+    /**
+     * A fresh VAPID key pair for a webpush channel's configuration; courier
+     * keeps nothing.
+     *
+     * @generated from rpc courier.console.v1.AdminService.GenerateWebPushKeys
+     */
+    async generateWebPushKeys(req, options) {
+        const res = await this.transport.unary(AdminService_GenerateWebPushKeys, req, { headers: options === null || options === void 0 ? void 0 : options.headers, signal: options === null || options === void 0 ? void 0 : options.signal, timeoutMs: options === null || options === void 0 ? void 0 : options.timeoutMs });
+        return applyUnaryCallbacks(res, options);
+    }
+    /**
+     * Sends a Web Push through a webpush channel to a subscription pasted
+     * from a browser; an audit record like any delivery.
+     *
+     * @generated from rpc courier.console.v1.AdminService.TestWebPush
+     */
+    async testWebPush(req, options) {
+        const res = await this.transport.unary(AdminService_TestWebPush, req, { headers: options === null || options === void 0 ? void 0 : options.headers, signal: options === null || options === void 0 ? void 0 : options.signal, timeoutMs: options === null || options === void 0 ? void 0 : options.timeoutMs });
         return applyUnaryCallbacks(res, options);
     }
 }

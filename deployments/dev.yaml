@@ -3,6 +3,7 @@
 channels:
   mail: {log: {kind: mail}}
   push: {log: {kind: push}}
+  web: {log: {kind: webpush}}
   sms:
     provider: {name: sms, settings: {sender: Shop}, secrets: {token: dev-token}}
 plugins:

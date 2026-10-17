@@ -1,7 +1,7 @@
 # backplane-courier
 
 Message delivery for a [Backplane](https://github.com/backplane-labs/backplane)
-installation: mail, push, and any provider a plugin adds, through the
+installation: mail, push, Web Push and any provider a plugin adds, through the
 installation's own channels. A product never imports it: it raises a hook or
 publishes an event, and the operator wires that to a courier activity in the
 console, usually after `templates.Render`.
@@ -22,6 +22,8 @@ full semantics.
 | `courier.SendMail` | A rendered mail (`to`, `cc`, `bcc`, `reply_to`, `subject`, `text`, `html`, `headers`, `attachments`, optional `from`, `channel`) through a mail channel. Answers `{channel, message_id}`. |
 | `courier.SendPush` | A push to one `token`, `topic` or `condition`: `title`, `body`, `image`, `data`, `priority`, `ttl_seconds`, `collapse_key`, and the raw FCM `android`, `apns`, `webpush`, `fcm_options` blocks merged over them, so every FCM field is reachable (`mutable-content`, `content-available`, `apns-push-type`, ...). `validate_only` checks with FCM without delivering. Answers `{channel, name}`. |
 | `courier.Subscribe`, `courier.Unsubscribe` | Device `tokens` (at most 1000) to or from an FCM `topic`; answers each token's outcome. |
+| `courier.SendWebPush` | A Web Push to one browser `subscription` (`{endpoint, keys: {p256dh, auth}}`, as `PushSubscription.toJSON()` writes it): `payload` (any JSON, at most 3993 bytes, what the service worker gets as `event.data.json()`), `ttl_seconds` (default 86400), `urgency`, `topic`. Answers `{channel, id}`. A subscription the browser dropped fails for good with code `gone`: delete it. |
+| `courier.WebPushKey` | The channel's VAPID public key, the `applicationServerKey` browsers subscribe with. |
 | `courier.Send<Kind>` | One per provider kind a plugin or a compiled-in provider adds (`SendSms`), with that provider's message schema plus an optional `channel`. |
 
 A message names its `channel`, else the kind's default (`defaults`), else the
@@ -38,6 +40,8 @@ channels:
     timeout: 30s
   push:
     fcm: {credentials: ${FCM_KEY}}      # service account key JSON; project_id from it unless set
+  web:
+    webpush: {subject: mailto:ops@shop.example, public_key: B..., private_key: ${VAPID_PRIVATE_KEY}}
   dev: {log: {kind: mail}}               # deliveries of a kind go to the log
   sms:
     provider: {name: smsc, settings: {sender: Shop}, secrets: {token: ${SMSC_TOKEN}}}
@@ -49,6 +53,22 @@ plugins:
 defaults: {mail: mail}                 # needed only when a kind has several channels
 dry_run: false                         # live: record deliveries, send nothing
 ```
+
+## Web Push
+
+Web Push is a standard (RFC 8030, 8291, 8292), so it is built in: no vendor
+account, one provider for Chrome, Edge, Firefox and Safari, whose push
+services the subscription's endpoint names. A `webpush` channel is a VAPID key
+pair and a contact `subject` (`mailto:` or an `https` URL); generate the pair
+in the console (Channels → Web Push) and keep the private key a secret. The
+console also sends a test push to a subscription pasted from a browser.
+
+Courier keeps no subscriptions: the product stores what its pages hand it,
+fans out per device, and deletes a subscription when a push fails with code
+`gone`. A subscription comes from a browser and is untrusted input, so courier
+posts only over https to the hosts in `hosts` (default: the browsers' own push
+services: `*.googleapis.com`, `*.push.services.mozilla.com`, `*.push.apple.com`,
+`*.notify.windows.com`), never to an IP address, and follows no redirect.
 
 ## Providers courier does not know
 

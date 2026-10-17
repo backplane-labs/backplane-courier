@@ -3,8 +3,10 @@ module github.com/backplane-labs/backplane-courier
 go 1.26.8
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/backplane-labs/backplane v0.6.10
 	github.com/emersion/go-smtp v0.25.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 	github.com/gopherex/schemapb/go v1.7.0
 	github.com/gopherex/xlog v1.2.1

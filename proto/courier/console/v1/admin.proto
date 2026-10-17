@@ -15,6 +15,12 @@ service AdminService {
   // connect and authenticate, an FCM validate-only message, a plugin's
   // Check.
   rpc CheckChannel(CheckChannelRequest) returns (CheckChannelResponse);
+  // A fresh VAPID key pair for a webpush channel's configuration; courier
+  // keeps nothing.
+  rpc GenerateWebPushKeys(GenerateWebPushKeysRequest) returns (GenerateWebPushKeysResponse);
+  // Sends a Web Push through a webpush channel to a subscription pasted
+  // from a browser; an audit record like any delivery.
+  rpc TestWebPush(TestWebPushRequest) returns (TestWebPushResponse);
 }
 
 message ListChannelsRequest {}
@@ -28,7 +34,7 @@ message ListChannelsResponse {
 // Channel is one configured channel as the console shows it.
 message Channel {
   string name = 1;
-  // smtp, fcm, log, or a plugin's kind.
+  // mail, push, webpush, or a plugin's kind.
   string kind = 2;
   // The plugin serving it; empty for a built-in kind.
   string plugin = 3;
@@ -55,4 +61,31 @@ message CheckChannelResponse {
   bool ok = 1;
   string error = 2;
   google.protobuf.Duration took = 3;
+}
+
+message GenerateWebPushKeysRequest {}
+
+message GenerateWebPushKeysResponse {
+  // base64url: public_key goes to the channel and to browsers,
+  // private_key to the channel's secret.
+  string public_key = 1;
+  string private_key = 2;
+}
+
+message TestWebPushRequest {
+  string channel = 1;
+  // PushSubscription.toJSON() of a browser: {"endpoint", "keys": {"p256dh", "auth"}}.
+  string subscription = 2;
+  // JSON the service worker gets.
+  string payload = 3;
+}
+
+message TestWebPushResponse {
+  bool ok = 1;
+  string error = 2;
+  // The push service's code of a refusal: gone, unauthorized, too_big...
+  string code = 3;
+  // The push service's id of the message.
+  string id = 4;
+  google.protobuf.Duration took = 5;
 }

@@ -4,9 +4,12 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane"
@@ -21,6 +24,7 @@ import (
 
 	"github.com/backplane-labs/backplane-courier/internal/channels"
 	"github.com/backplane-labs/backplane-courier/internal/courier"
+	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	courierconsolev1 "github.com/backplane-labs/backplane-courier/proto/courier/console/v1"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -84,6 +88,8 @@ func activityOf(kind string) string {
 		return "SendMail"
 	case channels.KindPush:
 		return "SendPush"
+	case channels.KindWebPush:
+		return "SendWebPush"
 	default:
 		return courier.ActivityName(kind)
 	}
@@ -111,6 +117,13 @@ func details(ch *channels.Channel) map[string]string {
 		}
 
 		return d
+	case s.WebPush != nil:
+		hosts := "the browsers' push services"
+		if len(s.WebPush.Hosts) > 0 {
+			hosts = strings.Join(s.WebPush.Hosts, ", ")
+		}
+
+		return map[string]string{"subject": s.WebPush.Subject, "public_key": s.WebPush.PublicKey, "hosts": hosts}
 	case s.Log != nil:
 		return map[string]string{"log": "deliveries go to the service log"}
 	case s.Provider != nil:
@@ -150,6 +163,8 @@ func (a *Admin) CheckChannel(
 		err = ch.Mail.Check(ctx)
 	case ch.Push != nil:
 		err = ch.Push.Check(ctx)
+	case ch.WebPush != nil:
+		err = ch.WebPush.Check(ctx)
 	case ch.Extension != nil:
 		err = ch.Extension.Provider.Check(ctx, provider.Channel{Name: ch.Name, Settings: ch.Settings})
 	}
@@ -169,6 +184,78 @@ func (a *Admin) CheckChannel(
 		xlog.String(backplane.AuditID, uuid.NewString()), xlog.String(backplane.AuditSubject, "channel/"+ch.Name),
 		xlog.String(backplane.AuditActor, "console"), xlog.String(backplane.AuditOutcome, outcome),
 		xlog.String("error", out.GetError()))
+
+	return out, nil
+}
+
+// GenerateWebPushKeys implements AdminService.
+func (a *Admin) GenerateWebPushKeys(
+	context.Context, *courierconsolev1.GenerateWebPushKeysRequest,
+) (*courierconsolev1.GenerateWebPushKeysResponse, error) {
+	public, private, err := webpush.GenerateKeys()
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error()) //nolint:wrapcheck // a gRPC status
+	}
+
+	return &courierconsolev1.GenerateWebPushKeysResponse{PublicKey: public, PrivateKey: private}, nil
+}
+
+// TestWebPush implements AdminService.
+func (a *Admin) TestWebPush(
+	ctx context.Context, req *courierconsolev1.TestWebPushRequest,
+) (*courierconsolev1.TestWebPushResponse, error) {
+	ch, ok := a.channels.Get(req.GetChannel())
+	if !ok || ch.Kind != channels.KindWebPush {
+		return nil, status.Errorf(codes.NotFound, "webpush channel %q is not configured", req.GetChannel())
+	}
+
+	msg := webpush.Message{Payload: json.RawMessage(req.GetPayload())}
+	if err := json.Unmarshal([]byte(req.GetSubscription()), &msg.Subscription); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "subscription: %v", err)
+	}
+
+	var hosts []string
+	if ch.WebPush != nil {
+		hosts = ch.WebPush.Hosts()
+	}
+
+	if err := msg.Validate(hosts); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error()) //nolint:wrapcheck // a gRPC status
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, ch.Timeout())
+	defer cancel()
+
+	started := time.Now()
+
+	var (
+		id  string
+		err error
+	)
+
+	if ch.WebPush == nil {
+		id = "logged"
+	} else {
+		id, err = ch.WebPush.Send(ctx, msg)
+	}
+
+	out := &courierconsolev1.TestWebPushResponse{Ok: err == nil, Id: id, Took: durationpb.New(time.Since(started))}
+
+	outcome := "succeeded"
+	if err != nil {
+		outcome, out.Error = "failed", err.Error()
+
+		var pe *provider.Error
+		if errors.As(err, &pe) {
+			out.Code = pe.Code
+		}
+	}
+
+	a.Log().Ctx().Info(ctx, "courier.webpush.tested",
+		backplane.Audit(), xlog.String("event.name", "courier.webpush.tested"),
+		xlog.String(backplane.AuditID, uuid.NewString()), xlog.String(backplane.AuditSubject, "channel/"+ch.Name),
+		xlog.String(backplane.AuditActor, "console"), xlog.String(backplane.AuditOutcome, outcome),
+		xlog.String("target", msg.Target()), xlog.String("code", out.GetCode()))
 
 	return out, nil
 }

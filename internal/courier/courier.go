@@ -1,6 +1,7 @@
 // Package courier is the service's work: an activity per kind of
 // delivery — SendMail, SendPush (with Subscribe and Unsubscribe for FCM
-// topics) and Send<Kind> for every extension provider — each delivering
+// topics), SendWebPush (with WebPushKey for the browsers) and Send<Kind>
+// for every extension provider — each delivering
 // at once through the channel the message names or the kind's default.
 // It keeps nothing: a temporary failure goes back to the caller, whose
 // retry policy decides; a final one is NonRetryable; a provider's
@@ -34,6 +35,7 @@ import (
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/internal/mail"
 	"github.com/backplane-labs/backplane-courier/internal/push"
+	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
 
@@ -71,6 +73,23 @@ type (
 		Name    string `json:"name"              schemapb:"description=FCM's message name"`
 		DryRun  bool   `json:"dry_run,omitempty"`
 	}
+	// WebPushResult is SendWebPush's answer.
+	WebPushResult struct {
+		Channel string `json:"channel"`
+		ID      string `json:"id"                schemapb:"description=The push service's id of the message (its Location)"`
+		DryRun  bool   `json:"dry_run,omitempty"`
+	}
+	// WebPushKeyRequest names a Web Push channel.
+	WebPushKeyRequest struct {
+		Channel string `json:"channel,omitempty" schemapb:"description=Web Push channel, else the default"`
+	}
+	// WebPushKeyResult is the key browsers subscribe with.
+	WebPushKeyResult struct {
+		Channel string `json:"channel"`
+		// PublicKey is the applicationServerKey of PushManager.subscribe();
+		// empty for a log channel.
+		PublicKey string `json:"public_key" schemapb:"description=applicationServerKey of PushManager.subscribe()"`
+	}
 	// TopicRequest changes a topic's subscriptions.
 	TopicRequest struct {
 		Channel string   `json:"channel,omitempty" schemapb:"description=Push channel, else the default"`
@@ -106,6 +125,11 @@ func New(
 		activity.Describe("delivers a rendered mail through a mail channel of the installation"))
 	activity.Handle(c, "SendPush", c.SendPush, activity.StartToClose(sendTimeout),
 		activity.Describe("delivers a push to a device, a topic or a condition through a push channel"))
+	activity.Handle(c, "SendWebPush", c.SendWebPush, activity.StartToClose(sendTimeout),
+		activity.Describe("delivers a Web Push to a browser's subscription through a webpush channel; "+
+			"a gone subscription fails with code gone"))
+	activity.Handle(c, "WebPushKey", c.WebPushKey, activity.StartToClose(sendTimeout),
+		activity.Describe("the VAPID public key browsers subscribe with (applicationServerKey)"))
 	activity.Handle(c, "Subscribe", c.Subscribe, activity.StartToClose(sendTimeout),
 		activity.Describe("subscribes device tokens to an FCM topic"))
 	activity.Handle(c, "Unsubscribe", c.Unsubscribe, activity.StartToClose(sendTimeout),
@@ -271,6 +295,57 @@ func (c *Courier) SendPush(ctx context.Context, msg push.Message) (PushResult, e
 	})
 
 	return out, err
+}
+
+// SendWebPush is the courier.SendWebPush activity.
+func (c *Courier) SendWebPush(ctx context.Context, msg webpush.Message) (WebPushResult, error) {
+	ch, err := c.pick(channels.KindWebPush, msg.Channel)
+	if err != nil {
+		return WebPushResult{}, err
+	}
+
+	var hosts []string
+	if ch.WebPush != nil {
+		hosts = ch.WebPush.Hosts()
+	}
+
+	if err := msg.Validate(hosts); err != nil {
+		return WebPushResult{}, activity.NonRetryable(err) //nolint:wrapcheck // final
+	}
+
+	out := WebPushResult{Channel: ch.Name, DryRun: c.set.DryRun.Get()}
+
+	err = c.deliver(ctx, ch, msg.Target(), []string{msg.Subscription.Endpoint}, func(ctx context.Context) (string, error) {
+		if ch.WebPush == nil || out.DryRun {
+			c.logged(ctx, ch, msg.Target(), len(msg.Payload))
+
+			out.ID = "logged/" + uuid.NewString()
+
+			return out.ID, nil
+		}
+
+		id, err := ch.WebPush.Send(ctx, msg)
+		out.ID = id
+
+		return id, err //nolint:wrapcheck // classified by deliver
+	})
+
+	return out, err
+}
+
+// WebPushKey is the courier.WebPushKey activity.
+func (c *Courier) WebPushKey(_ context.Context, req WebPushKeyRequest) (WebPushKeyResult, error) {
+	ch, err := c.pick(channels.KindWebPush, req.Channel)
+	if err != nil {
+		return WebPushKeyResult{}, err
+	}
+
+	out := WebPushKeyResult{Channel: ch.Name}
+	if ch.WebPush != nil {
+		out.PublicKey = ch.WebPush.PublicKey()
+	}
+
+	return out, nil
 }
 
 // Subscribe is the courier.Subscribe activity.

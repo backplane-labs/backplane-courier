@@ -19,8 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AdminService_ListChannels_FullMethodName = "/courier.console.v1.AdminService/ListChannels"
-	AdminService_CheckChannel_FullMethodName = "/courier.console.v1.AdminService/CheckChannel"
+	AdminService_ListChannels_FullMethodName        = "/courier.console.v1.AdminService/ListChannels"
+	AdminService_CheckChannel_FullMethodName        = "/courier.console.v1.AdminService/CheckChannel"
+	AdminService_GenerateWebPushKeys_FullMethodName = "/courier.console.v1.AdminService/GenerateWebPushKeys"
+	AdminService_TestWebPush_FullMethodName         = "/courier.console.v1.AdminService/TestWebPush"
 )
 
 // AdminServiceClient is the client API for AdminService service.
@@ -36,6 +38,12 @@ type AdminServiceClient interface {
 	// connect and authenticate, an FCM validate-only message, a plugin's
 	// Check.
 	CheckChannel(ctx context.Context, in *CheckChannelRequest, opts ...grpc.CallOption) (*CheckChannelResponse, error)
+	// A fresh VAPID key pair for a webpush channel's configuration; courier
+	// keeps nothing.
+	GenerateWebPushKeys(ctx context.Context, in *GenerateWebPushKeysRequest, opts ...grpc.CallOption) (*GenerateWebPushKeysResponse, error)
+	// Sends a Web Push through a webpush channel to a subscription pasted
+	// from a browser; an audit record like any delivery.
+	TestWebPush(ctx context.Context, in *TestWebPushRequest, opts ...grpc.CallOption) (*TestWebPushResponse, error)
 }
 
 type adminServiceClient struct {
@@ -66,6 +74,26 @@ func (c *adminServiceClient) CheckChannel(ctx context.Context, in *CheckChannelR
 	return out, nil
 }
 
+func (c *adminServiceClient) GenerateWebPushKeys(ctx context.Context, in *GenerateWebPushKeysRequest, opts ...grpc.CallOption) (*GenerateWebPushKeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateWebPushKeysResponse)
+	err := c.cc.Invoke(ctx, AdminService_GenerateWebPushKeys_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *adminServiceClient) TestWebPush(ctx context.Context, in *TestWebPushRequest, opts ...grpc.CallOption) (*TestWebPushResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TestWebPushResponse)
+	err := c.cc.Invoke(ctx, AdminService_TestWebPush_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility.
@@ -79,6 +107,12 @@ type AdminServiceServer interface {
 	// connect and authenticate, an FCM validate-only message, a plugin's
 	// Check.
 	CheckChannel(context.Context, *CheckChannelRequest) (*CheckChannelResponse, error)
+	// A fresh VAPID key pair for a webpush channel's configuration; courier
+	// keeps nothing.
+	GenerateWebPushKeys(context.Context, *GenerateWebPushKeysRequest) (*GenerateWebPushKeysResponse, error)
+	// Sends a Web Push through a webpush channel to a subscription pasted
+	// from a browser; an audit record like any delivery.
+	TestWebPush(context.Context, *TestWebPushRequest) (*TestWebPushResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -94,6 +128,12 @@ func (UnimplementedAdminServiceServer) ListChannels(context.Context, *ListChanne
 }
 func (UnimplementedAdminServiceServer) CheckChannel(context.Context, *CheckChannelRequest) (*CheckChannelResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CheckChannel not implemented")
+}
+func (UnimplementedAdminServiceServer) GenerateWebPushKeys(context.Context, *GenerateWebPushKeysRequest) (*GenerateWebPushKeysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateWebPushKeys not implemented")
+}
+func (UnimplementedAdminServiceServer) TestWebPush(context.Context, *TestWebPushRequest) (*TestWebPushResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TestWebPush not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 func (UnimplementedAdminServiceServer) testEmbeddedByValue()                      {}
@@ -152,6 +192,42 @@ func _AdminService_CheckChannel_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_GenerateWebPushKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateWebPushKeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).GenerateWebPushKeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_GenerateWebPushKeys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).GenerateWebPushKeys(ctx, req.(*GenerateWebPushKeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AdminService_TestWebPush_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TestWebPushRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).TestWebPush(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_TestWebPush_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).TestWebPush(ctx, req.(*TestWebPushRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -166,6 +242,14 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CheckChannel",
 			Handler:    _AdminService_CheckChannel_Handler,
+		},
+		{
+			MethodName: "GenerateWebPushKeys",
+			Handler:    _AdminService_GenerateWebPushKeys_Handler,
+		},
+		{
+			MethodName: "TestWebPush",
+			Handler:    _AdminService_TestWebPush_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

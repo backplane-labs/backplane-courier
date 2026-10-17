@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/deps"
@@ -13,14 +14,16 @@ import (
 
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/internal/smtp"
+	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
 
 // Providers of the built-in kinds.
 const (
-	ProviderSMTP = "smtp"
-	ProviderFCM  = "fcm"
-	ProviderLog  = "log"
+	ProviderSMTP    = "smtp"
+	ProviderFCM     = "fcm"
+	ProviderWebPush = "webpush"
+	ProviderLog     = "log"
 )
 
 // Errors of picking a channel; final for a delivery.
@@ -48,12 +51,13 @@ type Channel struct {
 	Name string
 	// Kind: mail, push or a provider's kind.
 	Kind string
-	// Provider: smtp, fcm, log, or the extension's name.
+	// Provider: smtp, fcm, webpush, log, or the extension's name.
 	Provider string
 	Spec     Spec
 
 	Mail      *smtp.Sender
 	Push      *fcm.Client
+	WebPush   *webpush.Client
 	Extension *Extension
 	// Settings of an extension channel as JSON (settings and secrets).
 	Settings []byte
@@ -103,6 +107,8 @@ type Options struct {
 	Defaults map[string]string
 	// TokenSource authorizes every FCM channel instead of its credentials.
 	TokenSource oauth2.TokenSource
+	// WebPushClient posts to push services (tests); nil: the default.
+	WebPushClient *http.Client
 }
 
 // New builds the channels of cfg (validated by Open).
@@ -152,6 +158,8 @@ func build(name string, spec Spec, opts Options) (*Channel, error) {
 		}
 
 		ch.Kind, ch.Provider, ch.Push = KindPush, ProviderFCM, client
+	case spec.WebPush != nil:
+		ch.Kind, ch.Provider, ch.WebPush = KindWebPush, ProviderWebPush, webpush.New(*spec.WebPush, opts.WebPushClient)
 	case spec.Log != nil:
 		ch.Kind, ch.Provider = spec.Log.Kind, ProviderLog
 	case spec.Provider != nil:

@@ -2,8 +2,14 @@ package courier_test
 
 import (
 	"context"
+	"crypto/ecdh"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,6 +30,7 @@ import (
 	"github.com/backplane-labs/backplane-courier/internal/push"
 	"github.com/backplane-labs/backplane-courier/internal/smtp"
 	"github.com/backplane-labs/backplane-courier/internal/smtp/smtptest"
+	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	"github.com/backplane-labs/backplane-courier/plugin"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -98,6 +105,7 @@ type fixture struct {
 	h      *backplanetest.Harness
 	smtp   *smtptest.Server
 	fcm    *fcmtest.Server
+	push   *pushService
 	sms    *sms
 	remote *sms
 }
@@ -105,7 +113,7 @@ type fixture struct {
 func start(t *testing.T) *fixture {
 	t.Helper()
 
-	f := &fixture{smtp: smtptest.Start(t), fcm: fcmtest.Start(t), sms: &sms{}, remote: &sms{}}
+	f := &fixture{smtp: smtptest.Start(t), fcm: fcmtest.Start(t), push: startPushService(t), sms: &sms{}, remote: &sms{}}
 	f.h = backplanetest.New(t, backplanetest.Name("courier"))
 
 	// The remote provider is a plugin on a unix socket.
@@ -150,6 +158,8 @@ func start(t *testing.T) *fixture {
 		},
 		"push":    {FCM: &fcm.Config{Credentials: "{}", ProjectID: "p", Endpoint: f.fcm.URL, IIDEndpoint: f.fcm.URL}, Pool: 2, Timeout: 5 * time.Second},
 		"devmail": {Log: &channels.Log{Kind: "mail"}, Pool: 1, Timeout: time.Second},
+		"web":     {WebPush: f.push.config(t), Pool: 1, Timeout: 5 * time.Second},
+		"devweb":  {Log: &channels.Log{Kind: "webpush"}, Pool: 1, Timeout: time.Second},
 		"sms": {Provider: &channels.Provider{
 			Name: "sms", Settings: map[string]string{"login": "shop"},
 			Secrets: map[string]config.Secret{"password": "pw"},
@@ -158,7 +168,8 @@ func start(t *testing.T) *fixture {
 	}
 
 	chs, err := channels.New(f.h.Root(), cfg, channels.Options{
-		Extensions: exts, Defaults: map[string]string{"mail": "mail"}, TokenSource: fcmtest.TokenSource(),
+		Extensions: exts, Defaults: map[string]string{"mail": "mail", "webpush": "web"}, TokenSource: fcmtest.TokenSource(),
+		WebPushClient: f.push.client,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -260,6 +271,118 @@ func TestPush(t *testing.T) {
 	}
 }
 
+// pushService is a browser vendor's push service at push.example.com.
+type pushService struct {
+	srv    *httptest.Server
+	client *http.Client
+	mu     sync.Mutex
+	got    int
+	status int
+}
+
+func startPushService(t *testing.T) *pushService {
+	t.Helper()
+
+	p := &pushService{status: http.StatusCreated}
+	p.srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+
+		_, _ = io.Copy(io.Discard, r.Body)
+		p.got++
+
+		w.Header().Set("Location", "https://push.example.com/m/1")
+		w.WriteHeader(p.status)
+	}))
+	t.Cleanup(p.srv.Close)
+
+	// push.example.com resolves to the test server, whose certificate
+	// names example.com.
+	transport, _ := p.srv.Client().Transport.(*http.Transport)
+	transport = transport.Clone()
+	transport.TLSClientConfig.ServerName = "example.com"
+	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, p.srv.Listener.Addr().String())
+	}
+	p.client = &http.Client{Transport: transport}
+
+	return p
+}
+
+func (p *pushService) config(t *testing.T) *webpush.Config {
+	t.Helper()
+
+	public, private, err := webpush.GenerateKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return &webpush.Config{Subject: "mailto:ops@shop.example", PublicKey: public, PrivateKey: config.Secret(private), Hosts: []string{"push.example.com"}}
+}
+
+func (p *pushService) answer(status int) {
+	p.mu.Lock()
+	p.status = status
+	p.mu.Unlock()
+}
+
+func subscription(t *testing.T, endpoint string) webpush.Subscription {
+	t.Helper()
+
+	key, err := ecdh.P256().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return webpush.Subscription{Endpoint: endpoint, Keys: webpush.Keys{
+		P256dh: base64.RawURLEncoding.EncodeToString(key.PublicKey().Bytes()),
+		Auth:   base64.RawURLEncoding.EncodeToString(make([]byte, 16)),
+	}}
+}
+
+func TestWebPush(t *testing.T) {
+	t.Parallel()
+
+	f := start(t)
+	sub := subscription(t, "https://push.example.com/s/1")
+
+	out, err := call[webpush.Message, courier.WebPushResult](t, f, "SendWebPush", webpush.Message{Subscription: sub, Payload: []byte(`{"title":"Hi"}`)})
+	if err != nil || out.Channel != "web" || out.ID != "https://push.example.com/m/1" || f.push.got != 1 {
+		t.Fatalf("webpush: %+v %v", out, err)
+	}
+
+	key, err := call[courier.WebPushKeyRequest, courier.WebPushKeyResult](t, f, "WebPushKey", courier.WebPushKeyRequest{})
+	if err != nil || key.Channel != "web" || key.PublicKey == "" {
+		t.Fatalf("key: %+v %v", key, err)
+	}
+
+	// An endpoint outside the channel's hosts never leaves courier.
+	if _, err := call[webpush.Message, courier.WebPushResult](t, f, "SendWebPush", webpush.Message{
+		Subscription: subscription(t, "https://billing.internal/admin"), Payload: []byte(`{}`),
+	}); !isFinal(err) || f.push.got != 1 {
+		t.Fatalf("internal endpoint: %v", err)
+	}
+
+	// The log channel, named: nothing posted.
+	if logged, err := call[webpush.Message, courier.WebPushResult](t, f, "SendWebPush", webpush.Message{
+		Channel: "devweb", Subscription: subscription(t, "https://fcm.googleapis.com/fcm/send/x"), Payload: []byte(`{}`),
+	}); err != nil || logged.Channel != "devweb" || f.push.got != 1 {
+		t.Fatalf("log: %+v %v", logged, err)
+	}
+
+	f.push.answer(http.StatusGone)
+
+	if _, err := call[webpush.Message, courier.WebPushResult](t, f, "SendWebPush", webpush.Message{Subscription: sub, Payload: []byte(`{}`)}); !isFinal(err) {
+		t.Fatalf("gone: %v", err)
+	}
+
+	f.push.answer(http.StatusTooManyRequests)
+
+	if _, err := call[webpush.Message, courier.WebPushResult](t, f, "SendWebPush", webpush.Message{Subscription: sub, Payload: []byte(`{}`)}); retryAfter(err) != time.Minute {
+		t.Fatalf("rate limited: %v", err)
+	}
+}
+
 // A provider courier does not know, compiled in or a plugin over gRPC:
 // its own activity, its schema, its failures.
 func TestExtensions(t *testing.T) {
@@ -285,7 +408,7 @@ func TestExtensions(t *testing.T) {
 		}
 	}
 
-	if !names["SendSms"] || !names["SendPager"] || !names["SendMail"] || !names["SendPush"] {
+	if !names["SendSms"] || !names["SendPager"] || !names["SendMail"] || !names["SendPush"] || !names["SendWebPush"] || !names["WebPushKey"] {
 		t.Fatalf("activities %v", names)
 	}
 
