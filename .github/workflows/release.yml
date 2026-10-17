@@ -31,7 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 360); do
             result="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --event push --json status,conclusion --jq '.[0] | [.status, .conclusion] | join(":")')"
             case "$result" in
               completed:success) exit 0 ;;
