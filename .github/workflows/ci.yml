@@ -13,7 +13,6 @@ concurrency:
 jobs:
   go:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     env:
       GOWORK: 'off'
     steps:
