@@ -17,8 +17,8 @@ github.com/armon/go-metrics v0.4.1 h1:hR91U9KYmb6bLBYLQjyM+3j+rcd/UhE+G78SFnF8gJ
 github.com/armon/go-metrics v0.4.1/go.mod h1:E6amYzXo6aW1tqzoZGT755KkbgrJsSdpwZ+3JqfkOG4=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
-github.com/backplane-labs/backplane v0.6.15 h1:tjgZXySieP65dhOElpQAvLVmax6SyfL/k2uTFCHVj9k=
-github.com/backplane-labs/backplane v0.6.15/go.mod h1:nXjs8HX62eUNCkBNKopr29nBYLuoxRmMVOgilLlzkyk=
+github.com/backplane-labs/backplane v0.6.16 h1:CP5Lrabfn3vsrrtIqDydVYv962+36SLrPTWvcwZfwRI=
+github.com/backplane-labs/backplane v0.6.16/go.mod h1:/FyFvcB8eekVYg2KxBpA6lKmowameRcu08bK3GwfgrY=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
@@ -127,8 +127,8 @@ github.com/gopherex/xtrace v1.1.0 h1:FB6xLu/jXtRC++bb0Lxrk0Gj/uZVt5nqFFqLN2THjo0
 github.com/gopherex/xtrace v1.1.0/go.mod h1:7ExXH5jPz3FAbpZiAxfwPoJ7GluvOoDjJCmAOchXiZQ=
 github.com/gopherex/xtrace/contrib/libs/xlog v1.1.0 h1:wztCznfrvmPMMjgVGymPOq1RUxcZavB+ccmFcnz+uMI=
 github.com/gopherex/xtrace/contrib/libs/xlog v1.1.0/go.mod h1:yDKdeVStR9zUAZhX9JhsBQl3HrO0asmDCemC5ETpkjs=
-github.com/gopherex/xtrace/contrib/sdk v1.1.0 h1:8CzdY+NOq9Cub0UfULwN+IhqIqw4sfSm8pXDzsnZzhk=
-github.com/gopherex/xtrace/contrib/sdk v1.1.0/go.mod h1:fYj76suOeYYfxS4yBqxju3ECcv3R8s4krKsbsD1616s=
+github.com/gopherex/xtrace/contrib/sdk v1.1.1 h1:s13eOfZ23JkOCi0WKz1nt83KTWfghmDVzzmsDPnxhAc=
+github.com/gopherex/xtrace/contrib/sdk v1.1.1/go.mod h1:fYj76suOeYYfxS4yBqxju3ECcv3R8s4krKsbsD1616s=
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 h1:sGm2vDRFUrQJO/Veii4h4zG2vvqG6uWNkBHSTqXOZk0=
 github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2/go.mod h1:wd1YpapPLivG6nQgbf7ZkG1hhSOXDhhn4MLTknx2aAc=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 h1:5VipnvEpbqr2gA2VbM+nYVbkIF28c5ZQfqCBQ5g2xfk=
