@@ -11,7 +11,15 @@ temporary failure goes back to the caller, whose retry policy (backplane's,
 per step and per for-each item) decides; a final one is not retried; a
 provider's Retry-After becomes `activity.RetryAfter`. Every delivery is a
 platform audit record (`courier.delivered`, `courier.failed`; recipients and
-tokens hashed, never a payload). Encryption, fan-out, muting and the like are
+tokens hashed, never a payload).
+
+A provider's final refusal (Web Push `gone`, FCM `UNREGISTERED`, an SMTP 5xx,
+an extension's permanent error) is also the event `courier.Refused`
+(`proto/courier/events/v1`): kind, channel, provider, code, message and the
+delivery's addresses — the device token, the subscription endpoint, the
+recipients. A rule on it cleans up dead addresses without reading error text.
+
+Encryption, fan-out, muting and the like are
 the product's and the installation's choices: courier exposes each provider's
 full semantics.
 

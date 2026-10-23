@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package courier.events.v1;
+
+option go_package = "github.com/backplane-labs/backplane-courier/proto/courier/events/v1;couriereventsv1";
+
+// Refused (courier.Refused): a provider refused a delivery for good — the
+// activity failed NonRetryable with the provider's code. A rule on it can
+// act on the address, e.g. drop a push subscription that is gone. The
+// event's key is the channel.
+message Refused {
+  // Kind of the delivery: mail, push, webpush or an extension's kind.
+  string kind = 1;
+  // Channel that delivered it.
+  string channel = 2;
+  // Provider of the channel.
+  string provider = 3;
+  // Provider's code of the refusal: gone (Web Push 404/410), UNREGISTERED
+  // or INVALID_ARGUMENT (FCM), an SMTP reply code, an extension's own.
+  string code = 4;
+  // Provider's message, without the delivery's addresses.
+  string message = 5;
+  // Addresses the delivery went to: the device token (push to a token),
+  // the subscription endpoint (webpush), the recipients (mail). Empty for
+  // a push to a topic or a condition and for extensions.
+  repeated string addresses = 6;
+  // Key of the activity execution that was refused (activity.InfoOf).
+  string key = 7;
+}

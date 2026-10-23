@@ -4,9 +4,9 @@
 // for every extension provider — each delivering
 // at once through the channel the message names or the kind's default.
 // It keeps nothing: a temporary failure goes back to the caller, whose
-// retry policy decides; a final one is NonRetryable; a provider's
-// Retry-After becomes activity.RetryAfter. Every outcome is an audit
-// record.
+// retry policy decides; a final one is NonRetryable and, when the provider
+// refused it, the event courier.Refused; a provider's Retry-After becomes
+// activity.RetryAfter. Every outcome is an audit record.
 package courier
 
 import (
@@ -23,6 +23,7 @@ import (
 	"github.com/backplane-labs/backplane/pkg/backplane/activity"
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
 	"github.com/backplane-labs/backplane/pkg/backplane/deps"
+	"github.com/backplane-labs/backplane/pkg/backplane/event"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -36,6 +37,7 @@ import (
 	"github.com/backplane-labs/backplane-courier/internal/mail"
 	"github.com/backplane-labs/backplane-courier/internal/push"
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
+	couriereventsv1 "github.com/backplane-labs/backplane-courier/proto/courier/events/v1"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
 
@@ -110,6 +112,8 @@ type Courier struct {
 	set      Settings
 	channels *channels.Channels
 
+	refused event.Ref[*couriereventsv1.Refused]
+
 	deliveries metric.Int64Counter
 	duration   metric.Float64Histogram
 }
@@ -134,6 +138,9 @@ func New(
 		activity.Describe("subscribes device tokens to an FCM topic"))
 	activity.Handle(c, "Unsubscribe", c.Unsubscribe, activity.StartToClose(sendTimeout),
 		activity.Describe("unsubscribes device tokens from an FCM topic"))
+
+	c.refused = event.Declare[*couriereventsv1.Refused](c, "Refused",
+		event.Describe("a provider refused a delivery for good (gone, unregistered, rejected): its code and addresses"))
 
 	declared := map[string]bool{}
 
@@ -175,6 +182,9 @@ func New(
 
 	return c, nil
 }
+
+// Refused is the event of a provider's final refusal.
+func (c *Courier) Refused() event.Ref[*couriereventsv1.Refused] { return c.refused }
 
 // ActivityName of an extension kind: Send<Kind> in CamelCase.
 func ActivityName(kind string) string {
@@ -248,7 +258,7 @@ func (c *Courier) SendMail(ctx context.Context, msg mail.Message) (MailResult, e
 
 	out := MailResult{Channel: ch.Name, MessageID: strings.Trim(built.GetMessageID(), "<>"), DryRun: c.set.DryRun.Get()}
 
-	err = c.deliver(ctx, ch, target, msg.Recipients(), func(ctx context.Context) (string, error) {
+	err = c.deliver(ctx, ch, target, msg.Recipients(), msg.Recipients(), func(ctx context.Context) (string, error) {
 		if ch.Mail == nil || out.DryRun {
 			c.logged(ctx, ch, target, int(msg.Size()))
 
@@ -279,7 +289,9 @@ func (c *Courier) SendPush(ctx context.Context, msg push.Message) (PushResult, e
 
 	out := PushResult{Channel: ch.Name, DryRun: c.set.DryRun.Get()}
 
-	err = c.deliver(ctx, ch, msg.Target(), []string{msg.Token}, func(ctx context.Context) (string, error) {
+	tokens := nonEmpty(msg.Token)
+
+	err = c.deliver(ctx, ch, msg.Target(), tokens, tokens, func(ctx context.Context) (string, error) {
 		if ch.Push == nil || out.DryRun {
 			c.logged(ctx, ch, msg.Target(), len(body))
 
@@ -315,7 +327,9 @@ func (c *Courier) SendWebPush(ctx context.Context, msg webpush.Message) (WebPush
 
 	out := WebPushResult{Channel: ch.Name, DryRun: c.set.DryRun.Get()}
 
-	err = c.deliver(ctx, ch, msg.Target(), []string{msg.Subscription.Endpoint}, func(ctx context.Context) (string, error) {
+	endpoint := []string{msg.Subscription.Endpoint}
+
+	err = c.deliver(ctx, ch, msg.Target(), endpoint, endpoint, func(ctx context.Context) (string, error) {
 		if ch.WebPush == nil || out.DryRun {
 			c.logged(ctx, ch, msg.Target(), len(msg.Payload))
 
@@ -384,7 +398,7 @@ func (c *Courier) topic(
 
 	out := TopicResult{Channel: ch.Name}
 
-	err = c.deliver(ctx, ch, "topic:"+req.Topic, req.Tokens, func(ctx context.Context) (string, error) {
+	err = c.deliver(ctx, ch, "topic:"+req.Topic, nil, req.Tokens, func(ctx context.Context) (string, error) {
 		if ch.Push == nil || c.set.DryRun.Get() {
 			c.logged(ctx, ch, "topic:"+req.Topic+"/"+operation, len(req.Tokens))
 
@@ -434,7 +448,7 @@ func (c *Courier) extension(kind string) func(ctx context.Context, in []byte) ([
 
 		var result []byte
 
-		err = c.deliver(ctx, ch, kind, stringsOf(fields), func(ctx context.Context) (string, error) {
+		err = c.deliver(ctx, ch, kind, nil, stringsOf(fields), func(ctx context.Context) (string, error) {
 			if ch.Extension == nil || c.set.DryRun.Get() {
 				c.logged(ctx, ch, kind, len(message))
 
@@ -463,6 +477,15 @@ func (c *Courier) extension(kind string) func(ctx context.Context, in []byte) ([
 	}
 }
 
+// nonEmpty is v as a list, empty when v is.
+func nonEmpty(v string) []string {
+	if v == "" {
+		return nil
+	}
+
+	return []string{v}
+}
+
 // stringsOf are the top-level string values of an extension message: a
 // provider's error may echo the number or address it refused.
 func stringsOf(fields map[string]json.RawMessage) []string {
@@ -489,9 +512,12 @@ func (c *Courier) pick(kind, name string) (*channels.Channel, error) {
 }
 
 // deliver runs send within the channel's pool, rate and timeout, and
-// turns its error into the activity's: final, later, or retried.
+// turns its error into the activity's: final, later, or retried. A
+// provider's final refusal is published as courier.Refused with addresses,
+// the delivery's (scrubbed from the texts kept).
 func (c *Courier) deliver(
-	ctx context.Context, ch *channels.Channel, target string, scrub []string, send func(context.Context) (string, error),
+	ctx context.Context, ch *channels.Channel, target string, addresses, scrub []string,
+	send func(context.Context) (string, error),
 ) error {
 	release, err := ch.Acquire(ctx)
 	if err != nil {
@@ -512,8 +538,34 @@ func (c *Courier) deliver(
 	}
 
 	c.record(ctx, ch, target, id, outcome, took, err, scrub)
+	c.refuse(ctx, ch, addresses, err, scrub)
 
 	return classify(err)
+}
+
+// refuse publishes courier.Refused when err is a provider's final refusal.
+// Without an event transport there is no one to tell.
+func (c *Courier) refuse(ctx context.Context, ch *channels.Channel, addresses []string, err error, scrub []string) {
+	var refusal *provider.Error
+	if !errors.As(err, &refusal) || !refusal.Permanent {
+		return
+	}
+
+	info, _ := activity.InfoOf(ctx)
+
+	refused := &couriereventsv1.Refused{
+		Kind: ch.Kind, Channel: ch.Name, Provider: ch.Provider, Code: refusal.Code,
+		Message: scrubbed(refusal.Message, scrub), Addresses: addresses, Key: info.Key,
+	}
+
+	opts := []event.PublishOption{event.Key(ch.Name)}
+	if info.Key != "" {
+		opts = append(opts, event.ID("refused/"+info.Key))
+	}
+
+	if err := c.refused.Publish(ctx, refused, opts...); err != nil && !errors.Is(err, event.ErrUnavailable) {
+		c.Log().Ctx().Warn(ctx, "courier.Refused not published", xlog.String("channel", ch.Name), xlog.Err(err))
+	}
 }
 
 // classify maps a provider error to the activity's.

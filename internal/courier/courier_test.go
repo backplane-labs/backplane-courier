@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -102,12 +103,13 @@ func (s *sms) Send(_ context.Context, d provider.Delivery) ([]byte, error) {
 }
 
 type fixture struct {
-	h      *backplanetest.Harness
-	smtp   *smtptest.Server
-	fcm    *fcmtest.Server
-	push   *pushService
-	sms    *sms
-	remote *sms
+	h       *backplanetest.Harness
+	courier *courier.Courier
+	smtp    *smtptest.Server
+	fcm     *fcmtest.Server
+	push    *pushService
+	sms     *sms
+	remote  *sms
 }
 
 func start(t *testing.T) *fixture {
@@ -179,7 +181,8 @@ func start(t *testing.T) *fixture {
 		DryRun config.Live[bool] `json:"dry_run" schemapb:"default=false"`
 	}](t, nil)
 
-	if _, err := courier.New(f.h.Root(), chs, courier.Settings{Limits: mail.DefaultLimits, DryRun: live.DryRun}, exts); err != nil {
+	f.courier, err = courier.New(f.h.Root(), chs, courier.Settings{Limits: mail.DefaultLimits, DryRun: live.DryRun}, exts)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -253,6 +256,12 @@ func TestPush(t *testing.T) {
 
 	if _, err := call[push.Message, courier.PushResult](t, f, "SendPush", push.Message{Token: "gone", Title: "x"}); !isFinal(err) {
 		t.Fatalf("dead token: %v", err)
+	}
+
+	refused := backplanetest.Events(f.h, f.courier.Refused())
+	if len(refused) != 1 || refused[0].GetCode() != "UNREGISTERED" || refused[0].GetKind() != "push" ||
+		refused[0].GetChannel() != "push" || !slices.Equal(refused[0].GetAddresses(), []string{"gone"}) {
+		t.Fatalf("refused: %v", refused)
 	}
 
 	if _, err := call[push.Message, courier.PushResult](t, f, "SendPush", push.Message{Token: "busy", Title: "x"}); retryAfter(err) != 7*time.Second {
@@ -374,6 +383,14 @@ func TestWebPush(t *testing.T) {
 
 	if _, err := call[webpush.Message, courier.WebPushResult](t, f, "SendWebPush", webpush.Message{Subscription: sub, Payload: []byte(`{}`)}); !isFinal(err) {
 		t.Fatalf("gone: %v", err)
+	}
+
+	// The refusal is an event: a rule drops the subscription. The endpoint
+	// outside the hosts was refused by courier, not a provider: no event.
+	refused := backplanetest.Events(f.h, f.courier.Refused())
+	if len(refused) != 1 || refused[0].GetCode() != "gone" || refused[0].GetKind() != "webpush" ||
+		!slices.Equal(refused[0].GetAddresses(), []string{sub.Endpoint}) {
+		t.Fatalf("refused: %v", refused)
 	}
 
 	f.push.answer(http.StatusTooManyRequests)
