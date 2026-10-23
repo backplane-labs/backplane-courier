@@ -93,8 +93,31 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.licenses=MIT
 
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@backplane-labs'
+      - name: Publish @backplane-labs/courier-events
+        working-directory: events
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          npm ci
+          npm run build
+          npm version "${VERSION#v}" --no-git-tag-version
+          npm publish
+
   publish:
-    needs: [build, docker]
+    needs: [build, docker, npm]
     runs-on: ubuntu-latest
     permissions:
       contents: write

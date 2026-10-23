@@ -15,7 +15,8 @@ tokens hashed, never a payload).
 
 A provider's final refusal (Web Push `gone`, FCM `UNREGISTERED`, an SMTP 5xx,
 an extension's permanent error) is also the event `courier.Refused`
-(`proto/courier/events/v1`): kind, channel, provider, code, message and the
+(`proto/courier/events/v1`; TypeScript: the npm package
+`@backplane-labs/courier-events`): kind, channel, provider, code, message and the
 delivery's addresses — the device token, the subscription endpoint, the
 recipients. A rule on it cleans up dead addresses without reading error text.
 

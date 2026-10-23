@@ -49,6 +49,7 @@ gen: ## Generate the internal API: Go stubs and the module's TypeScript client
 	"$(BIN)/easyp" lint -p proto
 	$(EASYP) generate
 	$(EASYP) --cfg easyp.web.yaml generate
+	$(EASYP) --cfg easyp.events.yaml generate
 
 .PHONY: lint-proto
 lint-proto: ## Lint the proto definitions
