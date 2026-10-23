@@ -385,11 +385,13 @@ func TestWebPush(t *testing.T) {
 		t.Fatalf("gone: %v", err)
 	}
 
-	// The refusal is an event: a rule drops the subscription. The endpoint
-	// outside the hosts was refused by courier, not a provider: no event.
+	// Each refusal is an event: a rule drops the subscription. The endpoint
+	// outside the hosts first, refused by courier itself.
 	refused := backplanetest.Events(f.h, f.courier.Refused())
-	if len(refused) != 1 || refused[0].GetCode() != "gone" || refused[0].GetKind() != "webpush" ||
-		!slices.Equal(refused[0].GetAddresses(), []string{sub.Endpoint}) {
+	if len(refused) != 2 || refused[0].GetCode() != "forbidden_destination" ||
+		!slices.Equal(refused[0].GetAddresses(), []string{"https://billing.internal/admin"}) ||
+		refused[1].GetCode() != "gone" || refused[1].GetKind() != "webpush" ||
+		!slices.Equal(refused[1].GetAddresses(), []string{sub.Endpoint}) {
 		t.Fatalf("refused: %v", refused)
 	}
 

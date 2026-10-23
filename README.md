@@ -76,7 +76,14 @@ fans out per device, and deletes a subscription when a push fails with code
 `gone`. A subscription comes from a browser and is untrusted input, so courier
 posts only over https to the hosts in `hosts` (default: the browsers' own push
 services: `*.googleapis.com`, `*.push.services.mozilla.com`, `*.push.apple.com`,
-`*.notify.windows.com`), never to an IP address, and follows no redirect.
+`*.notify.windows.com`), never to an IP address, and follows no redirect. The
+address it dials is checked after DNS: a name that resolves to loopback, a
+private or shared range (RFC 1918, RFC 6598, ULA), link-local (the cloud
+metadata service among them), unspecified or multicast is refused, so a host
+in `hosts` that resolves inside, or rebinds to it, reaches nothing. Web Push
+goes direct, never through `HTTPS_PROXY`: through a proxy courier could not
+see where it posts. Such an endpoint fails for good with code
+`forbidden_destination`, also published as `courier.Refused`.
 
 ## Providers courier does not know
 

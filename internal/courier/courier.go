@@ -322,6 +322,15 @@ func (c *Courier) SendWebPush(ctx context.Context, msg webpush.Message) (WebPush
 	}
 
 	if err := msg.Validate(hosts); err != nil {
+		if errors.Is(err, webpush.ErrEndpoint) {
+			// Somewhere courier does not post: a refusal like a provider's,
+			// so the product drops the subscription.
+			refusal := provider.Permanent(webpush.CodeForbidden, err.Error())
+			c.refuse(ctx, ch, []string{msg.Subscription.Endpoint}, refusal, []string{msg.Subscription.Endpoint})
+
+			return WebPushResult{}, activity.NonRetryable(refusal) //nolint:wrapcheck // final
+		}
+
 		return WebPushResult{}, activity.NonRetryable(err) //nolint:wrapcheck // final
 	}
 

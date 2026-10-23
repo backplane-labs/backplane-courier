@@ -153,7 +153,7 @@ func TestMessageValidate(t *testing.T) {
 		hosts []string
 		want  error
 	}{
-		"http":          {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://fcm.googleapis.com/x" }, want: webpush.ErrSubscription},
+		"http":          {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://fcm.googleapis.com/x" }, want: webpush.ErrEndpoint},
 		"internal host": {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://billing.internal/x" }, want: webpush.ErrEndpoint},
 		"ip":            {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://10.0.0.1/x" }, want: webpush.ErrEndpoint},
 		"lookalike":     {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://evilgoogleapis.com/x" }, want: webpush.ErrEndpoint},

@@ -54,6 +54,10 @@ var DefaultHosts = []string{
 	"*.push.apple.com", "*.notify.windows.com",
 }
 
+// CodeForbidden is the refusal's code for an endpoint courier does not post
+// to: not https, a host the channel does not allow, or an internal address.
+const CodeForbidden = "forbidden_destination"
+
 // Errors of the configuration and of Validate; every one is final.
 var (
 	ErrConfig       = errors.New("webpush: invalid channel")
@@ -228,8 +232,12 @@ func (s Subscription) validate(hosts []string) error {
 	}
 
 	endpoint, err := url.Parse(s.Endpoint)
-	if err != nil || endpoint.Scheme != "https" || endpoint.Host == "" || endpoint.User != nil {
+	if err != nil || endpoint.Host == "" || endpoint.User != nil {
 		return fmt.Errorf("%w: endpoint is an https URL", ErrSubscription)
+	}
+
+	if endpoint.Scheme != "https" {
+		return fmt.Errorf("%w: %w: endpoint is not https", ErrSubscription, ErrEndpoint)
 	}
 
 	if !Allowed(endpoint.Hostname(), hosts) {
@@ -299,10 +307,14 @@ type Client struct {
 }
 
 // New is the client of cfg (validated); client nil: the default, which
-// follows no redirect (an endpoint must not bounce courier elsewhere).
+// follows no redirect (an endpoint must not bounce courier elsewhere) and
+// dials only public addresses, directly (ErrForbiddenAddress).
 func New(cfg Config, client *http.Client) *Client {
 	if client == nil {
-		client = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		client = &http.Client{
+			Transport:     guarded(),
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
 	}
 
 	return &Client{cfg: cfg, http: client}
@@ -332,6 +344,10 @@ func (c *Client) Send(ctx context.Context, m Message) (string, error) {
 	if err != nil {
 		if errors.Is(err, wp.ErrMaxPadExceeded) {
 			return "", provider.Permanent("too_big", err.Error())
+		}
+
+		if errors.Is(err, ErrForbiddenAddress) {
+			return "", provider.Permanent(CodeForbidden, err.Error())
 		}
 
 		return "", fmt.Errorf("webpush: %w", err)
