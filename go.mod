@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/backplane-labs/backplane v0.6.41
+	github.com/backplane-labs/backplane v0.6.52
 	github.com/emersion/go-smtp v0.25.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
@@ -27,6 +27,7 @@ require (
 	github.com/cbroglie/mustache v1.4.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/coder/websocket v1.8.14 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
@@ -42,6 +43,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/cel-go v0.30.0 // indirect
+	github.com/gopherex/ws-proto v1.8.1 // indirect
 	github.com/gopherex/xconf v1.4.0 // indirect
 	github.com/gopherex/xconf/contrib/decoders/json v1.4.0 // indirect
 	github.com/gopherex/xconf/contrib/decoders/yaml v1.4.0 // indirect
