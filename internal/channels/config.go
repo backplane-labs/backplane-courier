@@ -14,6 +14,7 @@ import (
 
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/internal/smtp"
+	"github.com/backplane-labs/backplane-courier/internal/webhook"
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
 )
 
@@ -22,6 +23,7 @@ const (
 	KindMail    = "mail"
 	KindPush    = "push"
 	KindWebPush = "webpush"
+	KindWebhook = "webhook"
 )
 
 // Errors of the configuration.
@@ -32,11 +34,13 @@ var (
 
 var kindPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
-// Spec is one channel: exactly one of smtp, fcm, webpush, log or provider.
+// Spec is one channel: exactly one of smtp, fcm, webpush, webhook, log or
+// provider.
 type Spec struct {
 	SMTP    *smtp.Config    `json:"smtp,omitempty"    schemapb:"description=Mail through an SMTP relay"`
 	FCM     *fcm.Config     `json:"fcm,omitempty"     schemapb:"description=Push through Firebase Cloud Messaging"`
 	WebPush *webpush.Config `json:"webpush,omitempty" schemapb:"description=Web Push to browsers (VAPID)"`
+	Webhook *webhook.Config `json:"webhook,omitempty" schemapb:"description=Signed HTTP POST to receivers named per call"`
 	Log     *Log            `json:"log,omitempty"     schemapb:"description=Deliveries go to the service log"`
 	// Provider is a plugin or a compiled-in provider, by name.
 	Provider *Provider `json:"provider,omitempty" schemapb:"description=A plugin or a compiled-in provider"`
@@ -50,7 +54,7 @@ type Spec struct {
 
 // Log stands in for a kind: mail, push or a provider's.
 type Log struct {
-	Kind string `json:"kind" schemapb:"description=The kind it stands in for: mail, push, webpush or a provider's"`
+	Kind string `json:"kind" schemapb:"description=The kind it stands in for: mail, push, webpush, webhook or another"`
 }
 
 // Provider names an extension provider and its channel settings.
@@ -89,14 +93,15 @@ func (p Plugin) Validate() error {
 func (c Spec) Validate() error {
 	set := 0
 
-	for _, on := range []bool{c.SMTP != nil, c.FCM != nil, c.WebPush != nil, c.Log != nil, c.Provider != nil} {
+	providers := []bool{c.SMTP != nil, c.FCM != nil, c.WebPush != nil, c.Webhook != nil, c.Log != nil, c.Provider != nil}
+	for _, on := range providers {
 		if on {
 			set++
 		}
 	}
 
 	if set != 1 {
-		return fmt.Errorf("%w: exactly one of smtp, fcm, webpush, log or provider", ErrConfig)
+		return fmt.Errorf("%w: exactly one of smtp, fcm, webpush, webhook, log or provider", ErrConfig)
 	}
 
 	switch {
@@ -107,7 +112,7 @@ func (c Spec) Validate() error {
 	case c.WebPush != nil:
 		return c.WebPush.Validate() //nolint:wrapcheck // names itself
 	case c.Log != nil && !kindPattern.MatchString(c.Log.Kind):
-		return fmt.Errorf("%w: log.kind is mail, push, webpush or a provider's kind", ErrConfig)
+		return fmt.Errorf("%w: log.kind is mail, push, webpush, webhook or a provider's kind", ErrConfig)
 	case c.Provider != nil && c.Provider.Name == "":
 		return fmt.Errorf("%w: provider.name is required", ErrConfig)
 	}

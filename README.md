@@ -1,7 +1,7 @@
 # backplane-courier
 
 Message delivery for a [Backplane](https://github.com/backplane-labs/backplane)
-installation: mail, push, Web Push and any provider a plugin adds, through the
+installation: mail, push, Web Push, webhooks and any provider a plugin adds, through the
 installation's own channels. A product never imports it: it raises a hook or
 publishes an event, and the operator wires that to a courier activity in the
 console, usually after `templates.Render`.
@@ -33,6 +33,7 @@ full semantics.
 | `courier.Subscribe`, `courier.Unsubscribe` | Device `tokens` (at most 1000) to or from an FCM `topic`; answers each token's outcome. |
 | `courier.SendWebPush` | A Web Push to one browser `subscription` (`{endpoint, keys: {p256dh, auth}}`, as `PushSubscription.toJSON()` writes it): `payload` (any JSON, at most 3993 bytes, what the service worker gets as `event.data.json()`), `ttl_seconds` (default 86400), `urgency`, `topic`. Answers `{channel, id}`. A subscription the browser dropped fails for good with code `gone`: delete it. |
 | `courier.WebPushKey` | The channel's VAPID public key, the `applicationServerKey` browsers subscribe with. |
+| `courier.SendWebhook` | A signed POST of JSON to a receiver: `url`, `secret` (the receiver's signing secret), `body` (any JSON, at most 1 MiB), optional `id` (`webhook-id`, by default the step's, the same on every attempt) and `headers`. Answers `{channel, id}`. A refusal (another 3xx or 4xx, `410` with code `gone`) fails for good; `429`/`503` with Retry-After comes back then; anything else is retried. |
 | `courier.Send<Kind>` | One per provider kind a plugin or a compiled-in provider adds (`SendSms`), with that provider's message schema plus an optional `channel`. |
 
 A message names its `channel`, else the kind's default (`defaults`), else the
@@ -51,6 +52,8 @@ channels:
     fcm: {credentials: ${FCM_KEY}}      # service account key JSON; project_id from it unless set
   web:
     webpush: {subject: mailto:ops@shop.example, public_key: B..., private_key: ${VAPID_PRIVATE_KEY}}
+  hooks:
+    webhook: {hosts: ["*.bots.example.org"]}   # empty hosts: any public host
   dev: {log: {kind: mail}}               # deliveries of a kind go to the log
   sms:
     provider: {name: smsc, settings: {sender: Shop}, secrets: {token: ${SMSC_TOKEN}}}
@@ -62,6 +65,34 @@ plugins:
 defaults: {mail: mail}                 # needed only when a kind has several channels
 dry_run: false                         # live: record deliveries, send nothing
 ```
+
+## Webhooks
+
+`courier.SendWebhook` posts machine-to-machine messages, such as a bot's
+events to the endpoint its owner registered. The receiver URL and its secret
+are part of every call: the product keeps them, one per receiver, and courier
+keeps nothing. Messages are signed per
+[Standard Webhooks](https://www.standardwebhooks.com/):
+
+- `webhook-id`, `webhook-timestamp` (Unix seconds of the attempt) and
+  `webhook-signature: v1,<base64 HMAC-SHA256 of "id.timestamp.body">`;
+- a secret `whsec_<base64>` is decoded first, any other is used as is;
+- receivers verify with any Standard Webhooks library and deduplicate by
+  `webhook-id`.
+
+Retries are the caller's step retries, with backoff. A message that fails for
+good is the caller's workflow failure, its dead letter, and a refusal
+publishes `courier.Refused` with the URL, so a rule can disable the endpoint.
+The URL is product input, so it is guarded:
+- https only;
+- the channel's `hosts` when set;
+- the address dialed (after DNS) must be public, never loopback, private,
+  link-local or shared;
+- direct, not through a proxy, and no redirect is followed.
+
+`insecure: true` allows http and internal addresses, for a receiver in the
+installation's own network or for development. The URL is scrubbed from the
+logs and the audit, which keep only its host.
 
 ## Web Push
 

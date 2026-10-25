@@ -31,6 +31,7 @@ import (
 	"github.com/backplane-labs/backplane-courier/internal/push"
 	"github.com/backplane-labs/backplane-courier/internal/smtp"
 	"github.com/backplane-labs/backplane-courier/internal/smtp/smtptest"
+	"github.com/backplane-labs/backplane-courier/internal/webhook"
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	"github.com/backplane-labs/backplane-courier/plugin"
 	"github.com/backplane-labs/backplane-courier/provider"
@@ -162,6 +163,7 @@ func start(t *testing.T) *fixture {
 		"devmail": {Log: &channels.Log{Kind: "mail"}, Pool: 1, Timeout: time.Second},
 		"web":     {WebPush: f.push.config(t), Pool: 1, Timeout: 5 * time.Second},
 		"devweb":  {Log: &channels.Log{Kind: "webpush"}, Pool: 1, Timeout: time.Second},
+		"hooks":   {Webhook: &webhook.Config{Hosts: []string{"hooks.example.com"}}, Pool: 1, Timeout: 5 * time.Second},
 		"sms": {Provider: &channels.Provider{
 			Name: "sms", Settings: map[string]string{"login": "shop"},
 			Secrets: map[string]config.Secret{"password": "pw"},
@@ -171,7 +173,7 @@ func start(t *testing.T) *fixture {
 
 	chs, err := channels.New(f.h.Root(), cfg, channels.Options{
 		Extensions: exts, Defaults: map[string]string{"mail": "mail", "webpush": "web"}, TokenSource: fcmtest.TokenSource(),
-		WebPushClient: f.push.client,
+		WebPushClient: f.push.client, WebhookClient: f.push.client,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -404,6 +406,38 @@ func TestWebPush(t *testing.T) {
 
 // A provider courier does not know, compiled in or a plugin over gRPC:
 // its own activity, its schema, its failures.
+func TestWebhook(t *testing.T) {
+	t.Parallel()
+
+	f := start(t)
+	msg := webhook.Message{URL: "https://hooks.example.com/bot/7", Secret: "s", Body: []byte(`{"text":"hi"}`)}
+
+	out, err := call[webhook.Message, courier.WebhookResult](t, f, "SendWebhook", msg)
+	if err != nil || out.Channel != "hooks" || out.ID == "" || f.push.got != 1 {
+		t.Fatalf("webhook: %+v %v", out, err)
+	}
+
+	// A host outside the channel's never leaves courier.
+	outside := msg
+	outside.URL = "https://billing.internal/admin"
+
+	if _, err := call[webhook.Message, courier.WebhookResult](t, f, "SendWebhook", outside); !isFinal(err) || f.push.got != 1 {
+		t.Fatalf("outside: %v", err)
+	}
+
+	f.push.answer(http.StatusGone)
+
+	if _, err := call[webhook.Message, courier.WebhookResult](t, f, "SendWebhook", msg); !isFinal(err) || f.push.got != 2 {
+		t.Fatalf("gone: %v", err)
+	}
+
+	refused := backplanetest.Events(f.h, f.courier.Refused())
+	if len(refused) != 2 || refused[0].GetCode() != webhook.CodeForbidden || refused[1].GetCode() != webhook.CodeGone ||
+		!slices.Equal(refused[1].GetAddresses(), []string{msg.URL}) {
+		t.Fatalf("refused: %v", refused)
+	}
+}
+
 func TestExtensions(t *testing.T) {
 	t.Parallel()
 

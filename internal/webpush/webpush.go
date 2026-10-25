@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -27,6 +26,7 @@ import (
 	wp "github.com/SherClockHolmes/webpush-go"
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
 
+	"github.com/backplane-labs/backplane-courier/internal/netguard"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
 
@@ -263,28 +263,11 @@ func (s Subscription) validate(hosts []string) error {
 // Allowed reports whether host matches hosts (empty: DefaultHosts): an
 // exact name or *.suffix; never an IP address.
 func Allowed(host string, hosts []string) bool {
-	if net.ParseIP(host) != nil {
-		return false
-	}
-
 	if len(hosts) == 0 {
 		hosts = DefaultHosts
 	}
 
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-
-	for _, h := range hosts {
-		h = strings.ToLower(h)
-		if suffix, ok := strings.CutPrefix(h, "*."); ok {
-			if strings.HasSuffix(host, "."+suffix) {
-				return true
-			}
-		} else if host == h {
-			return true
-		}
-	}
-
-	return false
+	return netguard.Allowed(host, hosts)
 }
 
 // Target is the subscription as audited: its push service and a hash,
@@ -308,11 +291,11 @@ type Client struct {
 
 // New is the client of cfg (validated); client nil: the default, which
 // follows no redirect (an endpoint must not bounce courier elsewhere) and
-// dials only public addresses, directly (ErrForbiddenAddress).
+// dials only public addresses, directly (netguard.ErrForbiddenAddress).
 func New(cfg Config, client *http.Client) *Client {
 	if client == nil {
 		client = &http.Client{
-			Transport:     guarded(),
+			Transport:     netguard.Transport(),
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
 	}
@@ -346,7 +329,7 @@ func (c *Client) Send(ctx context.Context, m Message) (string, error) {
 			return "", provider.Permanent("too_big", err.Error())
 		}
 
-		if errors.Is(err, ErrForbiddenAddress) {
+		if errors.Is(err, netguard.ErrForbiddenAddress) {
 			return "", provider.Permanent(CodeForbidden, err.Error())
 		}
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/internal/smtp"
+	"github.com/backplane-labs/backplane-courier/internal/webhook"
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -23,6 +24,7 @@ const (
 	ProviderSMTP    = "smtp"
 	ProviderFCM     = "fcm"
 	ProviderWebPush = "webpush"
+	ProviderWebhook = "webhook"
 	ProviderLog     = "log"
 )
 
@@ -58,6 +60,7 @@ type Channel struct {
 	Mail      *smtp.Sender
 	Push      *fcm.Client
 	WebPush   *webpush.Client
+	Webhook   *webhook.Client
 	Extension *Extension
 	// Settings of an extension channel as JSON (settings and secrets).
 	Settings []byte
@@ -109,6 +112,8 @@ type Options struct {
 	TokenSource oauth2.TokenSource
 	// WebPushClient posts to push services (tests); nil: the default.
 	WebPushClient *http.Client
+	// WebhookClient posts webhooks (tests); nil: the default.
+	WebhookClient *http.Client
 }
 
 // New builds the channels of cfg (validated by Open).
@@ -160,6 +165,8 @@ func build(name string, spec Spec, opts Options) (*Channel, error) {
 		ch.Kind, ch.Provider, ch.Push = KindPush, ProviderFCM, client
 	case spec.WebPush != nil:
 		ch.Kind, ch.Provider, ch.WebPush = KindWebPush, ProviderWebPush, webpush.New(*spec.WebPush, opts.WebPushClient)
+	case spec.Webhook != nil:
+		ch.Kind, ch.Provider, ch.Webhook = KindWebhook, ProviderWebhook, webhook.New(*spec.Webhook, opts.WebhookClient)
 	case spec.Log != nil:
 		ch.Kind, ch.Provider = spec.Log.Kind, ProviderLog
 	case spec.Provider != nil:

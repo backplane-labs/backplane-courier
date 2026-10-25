@@ -90,6 +90,8 @@ func activityOf(kind string) string {
 		return "SendPush"
 	case channels.KindWebPush:
 		return "SendWebPush"
+	case channels.KindWebhook:
+		return "SendWebhook"
 	default:
 		return courier.ActivityName(kind)
 	}
@@ -124,6 +126,17 @@ func details(ch *channels.Channel) map[string]string {
 		}
 
 		return map[string]string{"subject": s.WebPush.Subject, "public_key": s.WebPush.PublicKey, "hosts": hosts}
+	case s.Webhook != nil:
+		hosts := "any public host"
+		if len(s.Webhook.Hosts) > 0 {
+			hosts = strings.Join(s.Webhook.Hosts, ", ")
+		}
+
+		if s.Webhook.Insecure {
+			hosts += "; http and internal addresses allowed"
+		}
+
+		return map[string]string{"hosts": hosts}
 	case s.Log != nil:
 		return map[string]string{"log": "deliveries go to the service log"}
 	case s.Provider != nil:

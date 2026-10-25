@@ -1,6 +1,7 @@
 // Package courier is the service's work: an activity per kind of
 // delivery — SendMail, SendPush (with Subscribe and Unsubscribe for FCM
-// topics), SendWebPush (with WebPushKey for the browsers) and Send<Kind>
+// topics), SendWebPush (with WebPushKey for the browsers), SendWebhook
+// (signed posts to receivers the product names) and Send<Kind>
 // for every extension provider — each delivering
 // at once through the channel the message names or the kind's default.
 // It keeps nothing: a temporary failure goes back to the caller, whose
@@ -36,6 +37,7 @@ import (
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/internal/mail"
 	"github.com/backplane-labs/backplane-courier/internal/push"
+	"github.com/backplane-labs/backplane-courier/internal/webhook"
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	couriereventsv1 "github.com/backplane-labs/backplane-courier/proto/courier/events/v1"
 	"github.com/backplane-labs/backplane-courier/provider"
@@ -79,6 +81,12 @@ type (
 	WebPushResult struct {
 		Channel string `json:"channel"`
 		ID      string `json:"id"                schemapb:"description=The push service's id of the message (its Location)"`
+		DryRun  bool   `json:"dry_run,omitempty"`
+	}
+	// WebhookResult is SendWebhook's answer.
+	WebhookResult struct {
+		Channel string `json:"channel"`
+		ID      string `json:"id"                schemapb:"description=The webhook-id the receiver got"`
 		DryRun  bool   `json:"dry_run,omitempty"`
 	}
 	// WebPushKeyRequest names a Web Push channel.
@@ -132,6 +140,9 @@ func New(
 	activity.Handle(c, "SendWebPush", c.SendWebPush, activity.StartToClose(sendTimeout),
 		activity.Describe("delivers a Web Push to a browser's subscription through a webpush channel; "+
 			"a gone subscription fails with code gone"))
+	activity.Handle(c, "SendWebhook", c.SendWebhook, activity.StartToClose(sendTimeout),
+		activity.Describe("posts signed JSON (Standard Webhooks) to a receiver URL through a webhook channel; "+
+			"a refusal (4xx, 410 gone) is final, anything else is retried"))
 	activity.Handle(c, "WebPushKey", c.WebPushKey, activity.StartToClose(sendTimeout),
 		activity.Describe("the VAPID public key browsers subscribe with (applicationServerKey)"))
 	activity.Handle(c, "Subscribe", c.Subscribe, activity.StartToClose(sendTimeout),
@@ -351,6 +362,55 @@ func (c *Courier) SendWebPush(ctx context.Context, msg webpush.Message) (WebPush
 		out.ID = id
 
 		return id, err //nolint:wrapcheck // classified by deliver
+	})
+
+	return out, err
+}
+
+// SendWebhook is the courier.SendWebhook activity.
+func (c *Courier) SendWebhook(ctx context.Context, msg webhook.Message) (WebhookResult, error) {
+	ch, err := c.pick(channels.KindWebhook, msg.Channel)
+	if err != nil {
+		return WebhookResult{}, err
+	}
+
+	var cfg webhook.Config
+	if ch.Webhook != nil {
+		cfg = ch.Webhook.Config()
+	}
+
+	// The URL may carry the receiver's token: never in what is kept.
+	target, scrub := msg.Target(), []string{msg.URL}
+
+	if err := msg.Validate(cfg); err != nil {
+		if errors.Is(err, webhook.ErrDestination) {
+			refusal := provider.Permanent(webhook.CodeForbidden, err.Error())
+			c.refuse(ctx, ch, []string{msg.URL}, refusal, scrub)
+
+			return WebhookResult{}, activity.NonRetryable(refusal) //nolint:wrapcheck // final
+		}
+
+		return WebhookResult{}, activity.NonRetryable(err) //nolint:wrapcheck // final
+	}
+
+	id := msg.ID
+	if id == "" {
+		id = "msg_" + uuid.NewString()
+		if info, ok := activity.InfoOf(ctx); ok && info.Key != "" {
+			id = info.Key
+		}
+	}
+
+	out := WebhookResult{Channel: ch.Name, ID: id, DryRun: c.set.DryRun.Get()}
+
+	err = c.deliver(ctx, ch, target, []string{msg.URL}, scrub, func(ctx context.Context) (string, error) {
+		if ch.Webhook == nil || out.DryRun {
+			c.logged(ctx, ch, target, len(msg.Body))
+
+			return id, nil
+		}
+
+		return ch.Webhook.Send(ctx, msg, id)
 	})
 
 	return out, err
