@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/backplane-labs/backplane/pkg/backplane/meshdial"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
@@ -196,7 +197,7 @@ func WithDialOptions(opts ...grpc.DialOption) DialOption {
 
 // Dial prepares a connection to a plugin: target is "unix:///path" or
 // "host:port". Nothing connects until the first call; gRPC reconnects with
-// backoff whenever the plugin goes away, and keepalive pings notice a dead
+// backoff whenever the plugin goes away (to its new address when it moved), and keepalive pings notice a dead
 // peer. Without WithTLS the connection is plaintext: keep such a plugin
 // next to courier (a sidecar, a unix socket on a shared volume).
 func Dial(target string, opts ...DialOption) (*Client, error) {
@@ -205,7 +206,6 @@ func Dial(target string, opts ...DialOption) (*Client, error) {
 	}
 
 	dial := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time: keepaliveTime, Timeout: keepaliveTimeout, PermitWithoutStream: true,
 		}),
@@ -220,7 +220,9 @@ func Dial(target string, opts ...DialOption) (*Client, error) {
 		opt(&dial)
 	}
 
-	conn, err := grpc.NewClient(target, dial...)
+	// A host name is looked up again within a second when the plugin's
+	// address moves, not after gRPC's 30 s.
+	conn, err := meshdial.Dial(target, insecure.NewCredentials(), dial...)
 	if err != nil {
 		return nil, fmt.Errorf("plugin: dial %s: %w", target, err)
 	}
