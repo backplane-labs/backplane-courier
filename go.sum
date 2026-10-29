@@ -21,8 +21,8 @@ github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2 v2.0.5 h1:UyhCtT7w
 github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2 v2.0.5/go.mod h1:k/KEmnHYdYJLbxgm8Hp2ImCwCUA/5mEh4ZGfI/+XxIA=
 github.com/avito-tech/go-transaction-manager/trm/v2 v2.0.5 h1:/2t12NcTGetk1gRLDiGIejq5uKPMGempTgTL67ZX8xk=
 github.com/avito-tech/go-transaction-manager/trm/v2 v2.0.5/go.mod h1:RftHdsefhv39lGvjmsqM5xB15n/tiQxlw1sLYusF3yg=
-github.com/backplane-labs/backplane v0.6.57 h1:JmIPWb5YECJREmzNGMXSOOCZ5um5Wj0g2W33ydQ+PT0=
-github.com/backplane-labs/backplane v0.6.57/go.mod h1:2hGrw7B9xd7K11W8hEL3TCvbe8uIK48SRcPlJW4YEso=
+github.com/backplane-labs/backplane v0.6.58 h1:TpAKaDstGeYIBb/gsZs1mm09/adQWg4tyE+Pk0LSwD4=
+github.com/backplane-labs/backplane v0.6.58/go.mod h1:2hGrw7B9xd7K11W8hEL3TCvbe8uIK48SRcPlJW4YEso=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
