@@ -26,10 +26,17 @@ const (
 	keepAlive   = 30 * time.Second
 )
 
-// special are the IANA special-purpose ranges netip does not classify that
-// are not globally reachable, or that embed an IPv4 address a gateway
-// would reach (NAT64, 6to4, Teredo): an internal one, 169.254.169.254
-// included, would pass under them.
+// globalUnicast6 is the only IPv6 range courier posts to: everything outside
+// it is not global unicast — IPv4-compatible and SIIT forms, NAT64,
+// discard, unique-local, link-local, site-local, multicast.
+//
+//nolint:gochecknoglobals // a constant prefix
+var globalUnicast6 = netip.MustParsePrefix("2000::/3")
+
+// special are the IANA special-purpose ranges inside IPv4 and 2000::/3 that
+// netip does not classify: not globally reachable, or embedding an IPv4
+// address a relay would reach (Teredo, 6to4), so an internal one,
+// 169.254.169.254 included, would pass under them.
 //
 //nolint:gochecknoglobals // constant prefixes
 var special = []netip.Prefix{
@@ -41,21 +48,23 @@ var special = []netip.Prefix{
 	netip.MustParsePrefix("198.51.100.0/24"), // documentation
 	netip.MustParsePrefix("203.0.113.0/24"),  // documentation
 	netip.MustParsePrefix("240.0.0.0/4"),     // reserved, broadcast included
-	netip.MustParsePrefix("64:ff9b::/96"),    // NAT64
-	netip.MustParsePrefix("64:ff9b:1::/48"),  // local-use NAT64
-	netip.MustParsePrefix("100::/64"),        // discard
-	netip.MustParsePrefix("2001::/32"),       // Teredo
+	netip.MustParsePrefix("2001::/23"),       // IETF protocol assignments, Teredo included
 	netip.MustParsePrefix("2001:db8::/32"),   // documentation
 	netip.MustParsePrefix("2002::/16"),       // 6to4
-	netip.MustParsePrefix("fec0::/10"),       // deprecated site-local
 }
 
-// Forbidden reports whether courier refuses to post to addr.
+// Forbidden reports whether courier refuses to post to addr. A zoned
+// address is scoped to an interface, never public.
 func Forbidden(addr netip.Addr) bool {
+	if addr.Zone() != "" {
+		return true
+	}
+
 	addr = addr.Unmap()
 
 	if !addr.IsValid() || addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() ||
-		addr.IsLinkLocalMulticast() || addr.IsInterfaceLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
+		addr.IsLinkLocalMulticast() || addr.IsInterfaceLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() ||
+		(addr.Is6() && !globalUnicast6.Contains(addr)) {
 		return true
 	}
 
@@ -96,9 +105,9 @@ func refuseInternal(_, address string, _ syscall.RawConn) error {
 }
 
 // Allowed reports whether host matches hosts: an exact name or *.suffix;
-// never an IP address.
+// never an IP address, zoned ones included.
 func Allowed(host string, hosts []string) bool {
-	if net.ParseIP(host) != nil {
+	if _, err := netip.ParseAddr(host); err == nil {
 		return false
 	}
 

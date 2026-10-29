@@ -19,7 +19,10 @@ func TestForbidden(t *testing.T) {
 		"203.0.113.1": true, "240.0.0.1": true, "255.255.255.255": true,
 		// IPv6 that embeds IPv4 (NAT64, 6to4, Teredo) reaches it through a gateway; deprecated site-local; discard.
 		"64:ff9b::a9fe:a9fe": true, "64:ff9b:1::1": true, "2002:a9fe:a9fe::1": true, "2001:0:4136:e378::1": true,
-		"fec0::1": true, "100::1": true, "2001:db8::1": true,
+		"fec0::1": true, "100::1": true, "2001:db8::1": true, "2001:2::1": true,
+		// IPv4-compatible and SIIT forms; zoned (scoped) addresses of any kind.
+		"::a9fe:a9fe": true, "::ffff:0:a9fe:a9fe": true, "64:ff9b::a9fe:a9fe%eth0": true,
+		"2a00:1450:4001::1%eth0": true, "3fff::1": false,
 		"8.8.8.8": false, "142.250.74.10": false, "2001:4860:4860::8888": false, "198.20.0.1": false,
 		"2a00:1450:4001::1": false,
 	} {
@@ -35,7 +38,8 @@ func TestAllowed(t *testing.T) {
 	hosts := []string{"hooks.example.com", "*.bots.example.org"}
 	for host, want := range map[string]bool{
 		"hooks.example.com": true, "HOOKS.example.com.": true, "a.bots.example.org": true,
-		"bots.example.org": false, "evil.example.com": false, "8.8.8.8": false,
+		"bots.example.org": false, "evil.example.com": false, "8.8.8.8": false, "fe80::1%eth0": false,
+		"2a00:1450:4001::1": false,
 	} {
 		if got := netguard.Allowed(host, hosts); got != want {
 			t.Errorf("%s: %v", host, got)

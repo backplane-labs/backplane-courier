@@ -88,8 +88,9 @@ The URL is product input, so it is guarded:
 - the channel's `hosts` when set;
 - the address dialed (after DNS, so a rebinding name is caught too) must be
   public: never loopback, private, link-local (169.254.169.254 included),
-  shared, multicast, another IANA special-purpose range, or IPv6 that
-  embeds IPv4 (NAT64, 6to4, Teredo);
+  shared, multicast or another IANA special-purpose range; IPv6 only inside
+  global unicast 2000::/3, without the ranges embedding IPv4 (6to4, Teredo;
+  NAT64, IPv4-compatible and SIIT forms are outside it), never zoned;
 - direct, not through a proxy, and no redirect is followed.
 
 `insecure: true` allows http and internal addresses, for a receiver in the
