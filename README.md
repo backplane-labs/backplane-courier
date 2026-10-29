@@ -86,8 +86,10 @@ publishes `courier.Refused` with the URL, so a rule can disable the endpoint.
 The URL is product input, so it is guarded:
 - https only;
 - the channel's `hosts` when set;
-- the address dialed (after DNS) must be public, never loopback, private,
-  link-local or shared;
+- the address dialed (after DNS, so a rebinding name is caught too) must be
+  public: never loopback, private, link-local (169.254.169.254 included),
+  shared, multicast, another IANA special-purpose range, or IPv6 that
+  embeds IPv4 (NAT64, 6to4, Teredo);
 - direct, not through a proxy, and no redirect is followed.
 
 `insecure: true` allows http and internal addresses, for a receiver in the

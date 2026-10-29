@@ -14,8 +14,9 @@ import (
 )
 
 // ErrForbiddenAddress: the destination's host resolved to an address
-// inside a network — loopback, private, link-local, shared, unspecified or
-// multicast. Checked on the address dialed, after DNS, so a name that
+// inside a network — loopback, private, link-local, shared, unspecified,
+// multicast, another special-purpose range, or IPv6 embedding IPv4 (NAT64,
+// 6to4, Teredo). Checked on the address dialed, after DNS, so a name that
 // resolves inside (or rebinds to it) is refused too.
 var ErrForbiddenAddress = errors.New("destination resolves to an internal address")
 
@@ -25,17 +26,46 @@ const (
 	keepAlive   = 30 * time.Second
 )
 
-// sharedSpace is RFC 6598's carrier-grade NAT range, which netip does not
-// count as private.
-var sharedSpace = netip.MustParsePrefix("100.64.0.0/10") //nolint:gochecknoglobals // a constant prefix
+// special are the IANA special-purpose ranges netip does not classify that
+// are not globally reachable, or that embed an IPv4 address a gateway
+// would reach (NAT64, 6to4, Teredo): an internal one, 169.254.169.254
+// included, would pass under them.
+//
+//nolint:gochecknoglobals // constant prefixes
+var special = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),       // this network
+	netip.MustParsePrefix("100.64.0.0/10"),   // shared address space (carrier-grade NAT)
+	netip.MustParsePrefix("192.0.0.0/24"),    // IETF protocol assignments
+	netip.MustParsePrefix("192.0.2.0/24"),    // documentation
+	netip.MustParsePrefix("198.18.0.0/15"),   // benchmarking, often used inside networks
+	netip.MustParsePrefix("198.51.100.0/24"), // documentation
+	netip.MustParsePrefix("203.0.113.0/24"),  // documentation
+	netip.MustParsePrefix("240.0.0.0/4"),     // reserved, broadcast included
+	netip.MustParsePrefix("64:ff9b::/96"),    // NAT64
+	netip.MustParsePrefix("64:ff9b:1::/48"),  // local-use NAT64
+	netip.MustParsePrefix("100::/64"),        // discard
+	netip.MustParsePrefix("2001::/32"),       // Teredo
+	netip.MustParsePrefix("2001:db8::/32"),   // documentation
+	netip.MustParsePrefix("2002::/16"),       // 6to4
+	netip.MustParsePrefix("fec0::/10"),       // deprecated site-local
+}
 
-// Forbidden reports whether courier refuses to post to ip.
-func Forbidden(ip netip.Addr) bool {
-	ip = ip.Unmap()
+// Forbidden reports whether courier refuses to post to addr.
+func Forbidden(addr netip.Addr) bool {
+	addr = addr.Unmap()
 
-	return !ip.IsValid() || ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() ||
-		sharedSpace.Contains(ip) || (ip.Is4() && ip.As4()[0] == 0)
+	if !addr.IsValid() || addr.IsLoopback() || addr.IsPrivate() || addr.IsLinkLocalUnicast() ||
+		addr.IsLinkLocalMulticast() || addr.IsInterfaceLocalMulticast() || addr.IsMulticast() || addr.IsUnspecified() {
+		return true
+	}
+
+	for _, p := range special {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Transport dials only public addresses and goes direct — through a proxy
