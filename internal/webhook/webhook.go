@@ -23,7 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/backplane-labs/backplane-courier/internal/netguard"
+	"github.com/backplane-labs/backplane/pkg/backplane/netguard"
+
 	"github.com/backplane-labs/backplane-courier/provider"
 )
 
@@ -185,17 +186,16 @@ type Client struct {
 // redirects and, unless the channel is insecure, dials only public
 // addresses, directly (netguard.ErrForbiddenAddress).
 func New(cfg Config, client *http.Client) *Client {
-	if client == nil {
-		transport := netguard.Transport()
-		if cfg.Insecure {
-			transport, _ = http.DefaultTransport.(*http.Transport)
-			transport = transport.Clone()
-		}
-
+	switch {
+	case client != nil:
+	case cfg.Insecure:
+		transport, _ := http.DefaultTransport.(*http.Transport)
 		client = &http.Client{
-			Transport:     transport,
+			Transport:     transport.Clone(),
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
+	default:
+		client = netguard.Client()
 	}
 
 	return &Client{cfg: cfg, http: client, now: time.Now}

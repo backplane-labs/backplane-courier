@@ -25,8 +25,8 @@ import (
 
 	wp "github.com/SherClockHolmes/webpush-go"
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
+	"github.com/backplane-labs/backplane/pkg/backplane/netguard"
 
-	"github.com/backplane-labs/backplane-courier/internal/netguard"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
 
@@ -294,10 +294,7 @@ type Client struct {
 // dials only public addresses, directly (netguard.ErrForbiddenAddress).
 func New(cfg Config, client *http.Client) *Client {
 	if client == nil {
-		client = &http.Client{
-			Transport:     netguard.Transport(),
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		}
+		client = netguard.Client()
 	}
 
 	return &Client{cfg: cfg, http: client}
