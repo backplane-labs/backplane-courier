@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
+
 	"github.com/backplane-labs/backplane-courier/internal/webhook"
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -28,7 +30,7 @@ func TestSign(t *testing.T) {
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
-	ok := webhook.Message{URL: "https://hooks.example.com/bot/1", Secret: "s", Body: json.RawMessage(`{"a":1}`)}
+	ok := webhook.Message{URL: "https://hooks.example.com/bot/1", Secrets: []string{"s"}, Body: json.RawMessage(`{"a":1}`)}
 	if err := ok.Validate(webhook.Config{}); err != nil {
 		t.Fatal(err)
 	}
@@ -42,8 +44,10 @@ func TestValidate(t *testing.T) {
 		"not allowed":    {cfg: webhook.Config{Hosts: []string{"*.bots.example.org"}}, want: webhook.ErrDestination},
 		"no host":        {edit: func(m *webhook.Message) { m.URL = "https:///x" }, want: webhook.ErrURL},
 		"user info":      {edit: func(m *webhook.Message) { m.URL = "https://u:p@hooks.example.com/" }, want: webhook.ErrURL},
-		"no secret":      {edit: func(m *webhook.Message) { m.Secret = "" }, want: webhook.ErrSecret},
-		"bad whsec":      {edit: func(m *webhook.Message) { m.Secret = "whsec_!!" }, want: webhook.ErrSecret},
+		"no secrets":     {edit: func(m *webhook.Message) { m.Secrets = nil }, want: webhook.ErrSecret},
+		"empty secret":   {edit: func(m *webhook.Message) { m.Secrets = []string{"s", ""} }, want: webhook.ErrSecret},
+		"bad whsec":      {edit: func(m *webhook.Message) { m.Secrets = []string{"s", "whsec_!!"} }, want: webhook.ErrSecret},
+		"too many":       {edit: func(m *webhook.Message) { m.Secrets = make([]string, 9) }, want: webhook.ErrSecret},
 		"no body":        {edit: func(m *webhook.Message) { m.Body = nil }, want: webhook.ErrBody},
 		"not json":       {edit: func(m *webhook.Message) { m.Body = json.RawMessage(`{`) }, want: webhook.ErrBody},
 		"id":             {edit: func(m *webhook.Message) { m.ID = "a\nb" }, want: webhook.ErrID},
@@ -90,9 +94,14 @@ func TestSend(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
+	const (
+		current  = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+		previous = "whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oD"
+	)
+
 	client := webhook.New(webhook.Config{Insecure: true}, nil)
 	m := webhook.Message{
-		URL: srv.URL + "/bot", Secret: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw", Body: json.RawMessage(`{"a":1}`),
+		URL: srv.URL + "/bot", Secrets: []string{current, previous}, Body: json.RawMessage(`{"a":1}`),
 		Headers: map[string]string{"X-Bot": "7"},
 	}
 
@@ -103,10 +112,25 @@ func TestSend(t *testing.T) {
 		t.Fatal(id, err)
 	}
 
-	sign := webhook.Sign(m.Secret, "msg_1", got.Header.Get(webhook.HeaderTimestamp), body)
-	if got.Header.Get(webhook.HeaderSignature) != sign || got.Header.Get(webhook.HeaderID) != "msg_1" ||
+	timestamp := got.Header.Get(webhook.HeaderTimestamp)
+	signs := webhook.Sign(current, "msg_1", timestamp, body) + " " + webhook.Sign(previous, "msg_1", timestamp, body)
+
+	if got.Header.Get(webhook.HeaderSignature) != signs || got.Header.Get(webhook.HeaderID) != "msg_1" ||
 		got.Header.Get("Content-Type") != "application/json" || got.Header.Get("X-Bot") != "7" || string(body) != `{"a":1}` {
 		t.Fatalf("request %v %s", got.Header, body)
+	}
+
+	// A receiver of the reference library verifies with either secret, not
+	// with a third.
+	for secret, want := range map[string]bool{current: true, previous: true, "whsec_dGhpcmQtc2VjcmV0LWtleQ==": false} {
+		receiver, err := standardwebhooks.NewWebhook(secret)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := receiver.Verify(body, got.Header); (err == nil) != want {
+			t.Errorf("verify with %s: %v, want ok %v", secret[:12], err, want)
+		}
 	}
 
 	for code, want := range map[int]struct {
@@ -146,7 +170,7 @@ func TestSecureRefusesInternal(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hit = true }))
 	t.Cleanup(srv.Close)
 
-	m := webhook.Message{URL: srv.URL, Secret: "s", Body: json.RawMessage(`{}`)}
+	m := webhook.Message{URL: srv.URL, Secrets: []string{"s"}, Body: json.RawMessage(`{}`)}
 
 	_, err := webhook.New(webhook.Config{}, nil).Send(context.Background(), m, "msg_1")
 

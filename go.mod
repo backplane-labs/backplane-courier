@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gopherex/schemapb/go v1.9.9
 	github.com/gopherex/xlog v1.2.1
+	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1
 	github.com/wneessen/go-mail v0.8.1
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/metric v1.45.0

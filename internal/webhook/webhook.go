@@ -34,6 +34,7 @@ const (
 	maxURL       = 2048
 	maxID        = 256
 	maxHeaders   = 32
+	maxSecrets   = 8
 	maxAnswer    = 4096
 )
 
@@ -63,7 +64,7 @@ const secretPrefix = "whsec_"
 var (
 	ErrURL         = errors.New("webhook: url is an https URL")
 	ErrDestination = errors.New("webhook: url is not a host this channel allows")
-	ErrSecret      = errors.New("webhook: secret is required (raw, or whsec_ and base64)")
+	ErrSecret      = errors.New("webhook: secrets are required (each raw, or whsec_ and base64)")
 	ErrBody        = errors.New("webhook: body is a JSON value")
 	ErrTooBig      = errors.New("webhook: body exceeds 1 MiB")
 	ErrID          = errors.New("webhook: id is up to 256 printable characters")
@@ -92,9 +93,12 @@ type Config struct {
 type Message struct {
 	Channel string `json:"channel,omitempty" schemapb:"description=Webhook channel of the installation, else the default"`
 	URL     string `json:"url"               schemapb:"description=Receiver URL"`
-	// Secret signs the message, raw or whsec_ and base64; the product
-	// keeps one per receiver.
-	Secret string `json:"secret" schemapb:"secret=true;description=Signing secret of the receiver"`
+	// Secrets sign the message, each raw or whsec_ and base64: every one
+	// adds its signature to webhook-signature, in order, so a receiver
+	// that knows any of them verifies it. A product rotating a receiver's
+	// secret signs with the new one and, while the receiver may still hold
+	// it, the old one.
+	Secrets []string `json:"secrets" schemapb:"secret=true;description=Signing secrets: the current one, then older ones"`
 	// ID is webhook-id, the receiver deduplicates by it; empty: the
 	// step's, the same on every attempt.
 	ID      string            `json:"id,omitempty"      schemapb:"description=webhook-id, else the step's"`
@@ -108,13 +112,13 @@ func (m Message) Validate(cfg Config) error {
 		return err
 	}
 
+	if err := m.validateSecrets(); err != nil {
+		return err
+	}
+
 	body := strings.TrimSpace(string(m.Body))
 
 	switch {
-	case m.Secret == "":
-		return ErrSecret
-	case strings.HasPrefix(m.Secret, secretPrefix) && decodeSecret(m.Secret) == nil:
-		return fmt.Errorf("%w: whsec_ secret is not base64", ErrSecret)
 	case body == "" || !json.Valid(m.Body):
 		return ErrBody
 	case len(m.Body) > MaxBodyBytes:
@@ -142,6 +146,23 @@ func (m Message) validateURL(cfg Config) error {
 
 	if len(cfg.Hosts) > 0 && !netguard.Allowed(target.Hostname(), cfg.Hosts) {
 		return fmt.Errorf("%w: %s", ErrDestination, target.Hostname())
+	}
+
+	return nil
+}
+
+func (m Message) validateSecrets() error {
+	if len(m.Secrets) == 0 || len(m.Secrets) > maxSecrets {
+		return fmt.Errorf("%w: 1 to %d", ErrSecret, maxSecrets)
+	}
+
+	for i, secret := range m.Secrets {
+		switch {
+		case secret == "":
+			return fmt.Errorf("%w: secret %d is empty", ErrSecret, i+1)
+		case strings.HasPrefix(secret, secretPrefix) && decodeSecret(secret) == nil:
+			return fmt.Errorf("%w: whsec_ secret %d is not base64", ErrSecret, i+1)
+		}
 	}
 
 	return nil
@@ -227,7 +248,13 @@ func (c *Client) Send(ctx context.Context, m Message, id string) (string, error)
 	req.Header.Set("User-Agent", "backplane-courier")
 	req.Header.Set(HeaderID, id)
 	req.Header.Set(HeaderTimestamp, timestamp)
-	req.Header.Set(HeaderSignature, Sign(m.Secret, id, timestamp, m.Body))
+
+	signatures := make([]string, 0, len(m.Secrets))
+	for _, secret := range m.Secrets {
+		signatures = append(signatures, Sign(secret, id, timestamp, m.Body))
+	}
+
+	req.Header.Set(HeaderSignature, strings.Join(signatures, " "))
 
 	res, err := c.http.Do(req)
 	if err != nil {

@@ -33,7 +33,7 @@ full semantics.
 | `courier.Subscribe`, `courier.Unsubscribe` | Device `tokens` (at most 1000) to or from an FCM `topic`; answers each token's outcome. |
 | `courier.SendWebPush` | A Web Push to one browser `subscription` (`{endpoint, keys: {p256dh, auth}}`, as `PushSubscription.toJSON()` writes it): `payload` (any JSON, at most 3993 bytes, what the service worker gets as `event.data.json()`), `ttl_seconds` (default 86400), `urgency`, `topic`. Answers `{channel, id}`. A subscription the browser dropped fails for good with code `gone`: delete it. |
 | `courier.WebPushKey` | The channel's VAPID public key, the `applicationServerKey` browsers subscribe with. |
-| `courier.SendWebhook` | A signed POST of JSON to a receiver: `url`, `secret` (the receiver's signing secret), `body` (any JSON, at most 1 MiB), optional `id` (`webhook-id`, by default the step's, the same on every attempt) and `headers`. Answers `{channel, id}`. A refusal (another 3xx or 4xx, `410` with code `gone`) fails for good; `429`/`503` with Retry-After comes back then; anything else is retried. |
+| `courier.SendWebhook` | A signed POST of JSON to a receiver: `url`, `secrets` (the receiver's signing secrets, 1 to 8: the current one, then older ones it may still hold), `body` (any JSON, at most 1 MiB), optional `id` (`webhook-id`, by default the step's, the same on every attempt) and `headers`. Answers `{channel, id}`. A refusal (another 3xx or 4xx, `410` with code `gone`) fails for good; `429`/`503` with Retry-After comes back then; anything else is retried. |
 | `courier.Send<Kind>` | One per provider kind a plugin or a compiled-in provider adds (`SendSms`), with that provider's message schema plus an optional `channel`. |
 
 A message names its `channel`, else the kind's default (`defaults`), else the
@@ -69,13 +69,17 @@ dry_run: false                         # live: record deliveries, send nothing
 ## Webhooks
 
 `courier.SendWebhook` posts machine-to-machine messages, such as a bot's
-events to the endpoint its owner registered. The receiver URL and its secret
-are part of every call: the product keeps them, one per receiver, and courier
+events to the endpoint its owner registered. The receiver URL and its secrets
+are part of every call: the product keeps them per receiver, and courier
 keeps nothing. Messages are signed per
 [Standard Webhooks](https://www.standardwebhooks.com/):
 
 - `webhook-id`, `webhook-timestamp` (Unix seconds of the attempt) and
-  `webhook-signature: v1,<base64 HMAC-SHA256 of "id.timestamp.body">`;
+  `webhook-signature: v1,<base64 HMAC-SHA256 of "id.timestamp.body">`, one
+  signature per secret, space-separated, in the order of `secrets`. A receiver
+  holding any of them verifies the message, so a product rotating a secret
+  passes the new one and the old one for as long as it keeps the old one
+  valid (its grace window), then the new one alone;
 - a secret `whsec_<base64>` is decoded first, any other is used as is;
 - receivers verify with any Standard Webhooks library and deduplicate by
   `webhook-id`.

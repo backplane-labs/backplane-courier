@@ -410,7 +410,7 @@ func TestWebhook(t *testing.T) {
 	t.Parallel()
 
 	f := start(t)
-	msg := webhook.Message{URL: "https://hooks.example.com/bot/7", Secret: "s", Body: []byte(`{"text":"hi"}`)}
+	msg := webhook.Message{URL: "https://hooks.example.com/bot/7", Secrets: []string{"s"}, Body: []byte(`{"text":"hi"}`)}
 
 	out, err := call[webhook.Message, courier.WebhookResult](t, f, "SendWebhook", msg)
 	if err != nil || out.Channel != "hooks" || out.ID == "" || f.push.got != 1 {
