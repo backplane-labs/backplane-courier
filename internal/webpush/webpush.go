@@ -87,6 +87,10 @@ type Config struct {
 	// untrusted input: courier posts only to push services listed here,
 	// over https.
 	Hosts []string `json:"hosts,omitempty" schemapb:"description=Allowed push service hosts, else the browsers own"`
+	// Insecure lets the channel post over http, to internal addresses and,
+	// without hosts, to any host: a push service in the installation's own
+	// network (a test stand), or development.
+	Insecure bool `json:"insecure,omitempty" schemapb:"description=Allow http, internal addresses and any host"`
 }
 
 // Validate checks the key pair and the subject.
@@ -180,9 +184,10 @@ type Message struct {
 }
 
 // Validate checks what a push service would refuse, and the endpoint
-// against hosts (empty: DefaultHosts).
-func (m Message) Validate(hosts []string) error {
-	if err := m.Subscription.validate(hosts); err != nil {
+// against the channel cfg: its hosts (empty: DefaultHosts) over https,
+// unless it is insecure.
+func (m Message) Validate(cfg Config) error {
+	if err := m.Subscription.validate(cfg); err != nil {
 		return err
 	}
 
@@ -226,22 +231,9 @@ func (m Message) TTL() int {
 	return int(*m.TTLSeconds)
 }
 
-func (s Subscription) validate(hosts []string) error {
-	if len(s.Endpoint) > maxEndpoint {
-		return fmt.Errorf("%w: endpoint too long", ErrSubscription)
-	}
-
-	endpoint, err := url.Parse(s.Endpoint)
-	if err != nil || endpoint.Host == "" || endpoint.User != nil {
-		return fmt.Errorf("%w: endpoint is an https URL", ErrSubscription)
-	}
-
-	if endpoint.Scheme != "https" {
-		return fmt.Errorf("%w: %w: endpoint is not https", ErrSubscription, ErrEndpoint)
-	}
-
-	if !Allowed(endpoint.Hostname(), hosts) {
-		return fmt.Errorf("%w: %s", ErrEndpoint, endpoint.Hostname())
+func (s Subscription) validate(cfg Config) error {
+	if err := cfg.checkEndpoint(s.Endpoint); err != nil {
+		return err
 	}
 
 	p, err := decode(s.Keys.P256dh)
@@ -255,6 +247,31 @@ func (s Subscription) validate(hosts []string) error {
 
 	if a, err := decode(s.Keys.Auth); err != nil || len(a) != 16 {
 		return fmt.Errorf("%w: keys.auth is 16 bytes of base64url", ErrSubscription)
+	}
+
+	return nil
+}
+
+// checkEndpoint: an https URL on a host the channel allows; with Insecure
+// also http, and any host when no hosts are listed.
+func (c Config) checkEndpoint(raw string) error {
+	if len(raw) > maxEndpoint {
+		return fmt.Errorf("%w: endpoint too long", ErrSubscription)
+	}
+
+	endpoint, err := url.Parse(raw)
+	if err != nil || endpoint.Host == "" || endpoint.User != nil ||
+		(endpoint.Scheme != "https" && endpoint.Scheme != "http") {
+		return fmt.Errorf("%w: endpoint is an https URL", ErrSubscription)
+	}
+
+	switch {
+	case endpoint.Scheme == "http" && !c.Insecure:
+		return fmt.Errorf("%w: %w: endpoint is not https", ErrSubscription, ErrEndpoint)
+	case c.Insecure && len(c.Hosts) == 0:
+		return nil
+	case !Allowed(endpoint.Hostname(), c.Hosts):
+		return fmt.Errorf("%w: %s", ErrEndpoint, endpoint.Hostname())
 	}
 
 	return nil
@@ -290,18 +307,27 @@ type Client struct {
 }
 
 // New is the client of cfg (validated); client nil: the default, which
-// follows no redirect (an endpoint must not bounce courier elsewhere) and
-// dials only public addresses, directly (netguard.ErrForbiddenAddress).
+// follows no redirect (an endpoint must not bounce courier elsewhere) and,
+// unless the channel is insecure, dials only public addresses, directly
+// (netguard.ErrForbiddenAddress).
 func New(cfg Config, client *http.Client) *Client {
-	if client == nil {
+	switch {
+	case client != nil:
+	case cfg.Insecure:
+		transport, _ := http.DefaultTransport.(*http.Transport)
+		client = &http.Client{
+			Transport:     transport.Clone(),
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
+	default:
 		client = netguard.Client()
 	}
 
 	return &Client{cfg: cfg, http: client}
 }
 
-// Hosts the channel's endpoints may name.
-func (c *Client) Hosts() []string { return c.cfg.Hosts }
+// Config of the channel: what its endpoints may name.
+func (c *Client) Config() Config { return c.cfg }
 
 // PublicKey of the channel: browsers subscribe with it.
 func (c *Client) PublicKey() string { return c.cfg.PublicKey }

@@ -97,6 +97,26 @@ func activityOf(kind string) string {
 	}
 }
 
+// hostsText is where a channel may post: its hosts, else otherwise (any
+// host when it is insecure), and whether http and internal addresses are
+// allowed.
+func hostsText(hosts []string, insecure bool, otherwise string) string {
+	text := otherwise
+
+	switch {
+	case len(hosts) > 0:
+		text = strings.Join(hosts, ", ")
+	case insecure:
+		text = "any host"
+	}
+
+	if insecure {
+		text += "; http and internal addresses allowed"
+	}
+
+	return text
+}
+
 // details are what the console may show: never a secret.
 func details(ch *channels.Channel) map[string]string {
 	s := ch.Spec
@@ -120,23 +140,12 @@ func details(ch *channels.Channel) map[string]string {
 
 		return d
 	case s.WebPush != nil:
-		hosts := "the browsers' push services"
-		if len(s.WebPush.Hosts) > 0 {
-			hosts = strings.Join(s.WebPush.Hosts, ", ")
+		return map[string]string{
+			"subject": s.WebPush.Subject, "public_key": s.WebPush.PublicKey,
+			"hosts": hostsText(s.WebPush.Hosts, s.WebPush.Insecure, "the browsers' push services"),
 		}
-
-		return map[string]string{"subject": s.WebPush.Subject, "public_key": s.WebPush.PublicKey, "hosts": hosts}
 	case s.Webhook != nil:
-		hosts := "any public host"
-		if len(s.Webhook.Hosts) > 0 {
-			hosts = strings.Join(s.Webhook.Hosts, ", ")
-		}
-
-		if s.Webhook.Insecure {
-			hosts += "; http and internal addresses allowed"
-		}
-
-		return map[string]string{"hosts": hosts}
+		return map[string]string{"hosts": hostsText(s.Webhook.Hosts, s.Webhook.Insecure, "any public host")}
 	case s.Log != nil:
 		return map[string]string{"log": "deliveries go to the service log"}
 	case s.Provider != nil:
@@ -227,12 +236,12 @@ func (a *Admin) TestWebPush(
 		return nil, status.Errorf(codes.InvalidArgument, "subscription: %v", err)
 	}
 
-	var hosts []string
+	var cfg webpush.Config
 	if ch.WebPush != nil {
-		hosts = ch.WebPush.Hosts()
+		cfg = ch.WebPush.Config()
 	}
 
-	if err := msg.Validate(hosts); err != nil {
+	if err := msg.Validate(cfg); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error()) //nolint:wrapcheck // a gRPC status
 	}
 

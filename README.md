@@ -124,6 +124,40 @@ goes direct, never through `HTTPS_PROXY`: through a proxy courier could not
 see where it posts. Such an endpoint fails for good with code
 `forbidden_destination`, also published as `courier.Refused`.
 
+`insecure: true` lifts that guard for one channel: it posts over http, to
+internal addresses, and to any host when `hosts` is empty. Use it for a push
+service in the installation's own network, such as a test stand, or for
+development.
+
+## Push channels on a test stand
+
+A test installation can run push channels entirely against fakes it
+controls, so a provider's refusal and `courier.Refused` can be checked end
+to end:
+
+```yaml
+channels:
+  push:
+    fcm:
+      endpoint: http://push-fake:8080     # FCM v1: POST /v1/projects/<project>/messages:send
+      credentials: ${STAND_FCM_KEY}       # any service account key whose token_uri is the fake:
+                                          # {"type":"service_account","project_id":"stand",
+                                          #  "client_email":"courier@stand.iam.gserviceaccount.com",
+                                          #  "private_key":"<a PEM RSA key>","token_uri":"http://push-fake:8080/token"}
+  web:
+    webpush: {subject: mailto:ops@stand.test, public_key: B..., private_key: ${VAPID_PRIVATE_KEY}, insecure: true}
+```
+
+- **FCM.** The key's `token_uri` receives the JWT-bearer token request.
+  Answer it with `{"access_token":"stand","token_type":"Bearer","expires_in":3600}`.
+  `endpoint` receives the sends. A `404` whose body carries `FcmError`
+  `errorCode: UNREGISTERED` is a final refusal: the delivery fails for good
+  and `courier.Refused` names the token. `NOT_FOUND`, `INVALID_ARGUMENT`,
+  `SENDER_ID_MISMATCH`, `THIRD_PARTY_AUTH_ERROR` and `PERMISSION_DENIED` are
+  final too.
+- **Web Push.** With `insecure: true` a subscription may name the fake's
+  `http://` endpoint. A `404` or `410` is the final refusal `gone`.
+
 ## Providers courier does not know
 
 **A plugin** is a gRPC service implementing `courier.plugin.v1.ProviderService`

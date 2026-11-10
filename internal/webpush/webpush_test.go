@@ -142,37 +142,41 @@ func TestMessageValidate(t *testing.T) {
 	sub := newBrowser(t).subscription("https://updates.push.services.mozilla.com/wpush/v2/abc")
 	ok := webpush.Message{Subscription: sub, Payload: []byte(`{"title":"hi"}`)}
 
-	if err := ok.Validate(nil); err != nil {
+	if err := ok.Validate(webpush.Config{}); err != nil {
 		t.Fatal(err)
 	}
 
 	ttl, long := int64(-1), strings.Repeat("a", webpush.MaxPayloadBytes)
 
 	cases := map[string]struct {
-		edit  func(m *webpush.Message)
-		hosts []string
-		want  error
+		edit func(m *webpush.Message)
+		cfg  webpush.Config
+		want error
 	}{
-		"http":          {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://fcm.googleapis.com/x" }, want: webpush.ErrEndpoint},
-		"internal host": {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://billing.internal/x" }, want: webpush.ErrEndpoint},
-		"ip":            {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://10.0.0.1/x" }, want: webpush.ErrEndpoint},
-		"lookalike":     {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://evilgoogleapis.com/x" }, want: webpush.ErrEndpoint},
-		"own host":      {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://push.example.com/x" }, hosts: []string{"push.example.com"}},
-		"bad p256dh":    {edit: func(m *webpush.Message) { m.Subscription.Keys.P256dh = b64.EncodeToString([]byte("short")) }, want: webpush.ErrSubscription},
-		"bad auth":      {edit: func(m *webpush.Message) { m.Subscription.Keys.Auth = "AAAA" }, want: webpush.ErrSubscription},
-		"no payload":    {edit: func(m *webpush.Message) { m.Payload = nil }, want: webpush.ErrPayload},
-		"not json":      {edit: func(m *webpush.Message) { m.Payload = []byte("hi") }, want: webpush.ErrPayload},
-		"too big":       {edit: func(m *webpush.Message) { m.Payload = []byte(`"` + long + `"`) }, want: webpush.ErrTooBig},
-		"ttl":           {edit: func(m *webpush.Message) { m.TTLSeconds = &ttl }, want: webpush.ErrTTL},
-		"urgency":       {edit: func(m *webpush.Message) { m.Urgency = "urgent" }, want: webpush.ErrUrgency},
-		"topic":         {edit: func(m *webpush.Message) { m.Topic = "has space" }, want: webpush.ErrTopic},
+		"http":            {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://fcm.googleapis.com/x" }, want: webpush.ErrEndpoint},
+		"internal host":   {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://billing.internal/x" }, want: webpush.ErrEndpoint},
+		"ip":              {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://10.0.0.1/x" }, want: webpush.ErrEndpoint},
+		"lookalike":       {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://evilgoogleapis.com/x" }, want: webpush.ErrEndpoint},
+		"own host":        {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://push.example.com/x" }, cfg: webpush.Config{Hosts: []string{"push.example.com"}}},
+		"insecure http":   {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://push-fake:8080/x" }, cfg: webpush.Config{Insecure: true}},
+		"insecure ip":     {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://10.0.0.1/x" }, cfg: webpush.Config{Insecure: true}},
+		"insecure, hosts": {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://other:8080/x" }, cfg: webpush.Config{Insecure: true, Hosts: []string{"push-fake"}}, want: webpush.ErrEndpoint},
+		"not a push url":  {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "ftp://push-fake/x" }, cfg: webpush.Config{Insecure: true}, want: webpush.ErrSubscription},
+		"bad p256dh":      {edit: func(m *webpush.Message) { m.Subscription.Keys.P256dh = b64.EncodeToString([]byte("short")) }, want: webpush.ErrSubscription},
+		"bad auth":        {edit: func(m *webpush.Message) { m.Subscription.Keys.Auth = "AAAA" }, want: webpush.ErrSubscription},
+		"no payload":      {edit: func(m *webpush.Message) { m.Payload = nil }, want: webpush.ErrPayload},
+		"not json":        {edit: func(m *webpush.Message) { m.Payload = []byte("hi") }, want: webpush.ErrPayload},
+		"too big":         {edit: func(m *webpush.Message) { m.Payload = []byte(`"` + long + `"`) }, want: webpush.ErrTooBig},
+		"ttl":             {edit: func(m *webpush.Message) { m.TTLSeconds = &ttl }, want: webpush.ErrTTL},
+		"urgency":         {edit: func(m *webpush.Message) { m.Urgency = "urgent" }, want: webpush.ErrUrgency},
+		"topic":           {edit: func(m *webpush.Message) { m.Topic = "has space" }, want: webpush.ErrTopic},
 	}
 
 	for name, c := range cases {
 		m := ok
 		c.edit(&m)
 
-		if err := m.Validate(c.hosts); !errors.Is(err, c.want) {
+		if err := m.Validate(c.cfg); !errors.Is(err, c.want) {
 			t.Errorf("%s: err = %v, want %v", name, err, c.want)
 		}
 	}

@@ -327,12 +327,12 @@ func (c *Courier) SendWebPush(ctx context.Context, msg webpush.Message) (WebPush
 		return WebPushResult{}, err
 	}
 
-	var hosts []string
+	var cfg webpush.Config
 	if ch.WebPush != nil {
-		hosts = ch.WebPush.Hosts()
+		cfg = ch.WebPush.Config()
 	}
 
-	if err := msg.Validate(hosts); err != nil {
+	if err := msg.Validate(cfg); err != nil {
 		if errors.Is(err, webpush.ErrEndpoint) {
 			// Somewhere courier does not post: a refusal like a provider's,
 			// so the product drops the subscription.

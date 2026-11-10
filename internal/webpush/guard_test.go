@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
 
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
@@ -36,5 +37,34 @@ func TestDialsOnlyPublicAddresses(t *testing.T) {
 	var refusal *provider.Error
 	if !errors.As(err, &refusal) || refusal.Code != webpush.CodeForbidden || !refusal.Permanent || hit {
 		t.Fatalf("internal address: %v (posted %v)", err, hit)
+	}
+}
+
+// An insecure channel posts over http to a push service inside, a test
+// stand's, whose refusal of a gone subscription is final.
+func TestInsecurePostsInside(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusGone)
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg := channel(t)
+	cfg.Insecure = true
+
+	m := webpush.Message{Subscription: newBrowser(t).subscription(srv.URL + "/push/gone"), Payload: []byte(`{}`)}
+	if err := m.Validate(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := webpush.New(cfg, nil).Send(context.Background(), m)
+
+	var refusal *provider.Error
+	if !errors.As(err, &refusal) || refusal.Code != "gone" || !refusal.Permanent || hits.Load() != 1 {
+		t.Fatalf("insecure channel: %v (%d posts)", err, hits.Load())
 	}
 }
