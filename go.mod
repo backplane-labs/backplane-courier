@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/backplane-labs/backplane v0.6.61
+	github.com/backplane-labs/backplane v0.6.78
 	github.com/emersion/go-smtp v0.25.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
@@ -44,7 +44,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/cel-go v0.30.0 // indirect
-	github.com/gopherex/ws-proto v1.8.1 // indirect
+	github.com/gopherex/ws-proto v1.9.1 // indirect
 	github.com/gopherex/xconf v1.4.2 // indirect
 	github.com/gopherex/xconf/contrib/decoders/json v1.4.2 // indirect
 	github.com/gopherex/xconf/contrib/decoders/yaml v1.4.2 // indirect
@@ -55,9 +55,9 @@ require (
 	github.com/gopherex/xprobe v1.2.0 // indirect
 	github.com/gopherex/xprobe/pkg/transport/grpc v1.2.0 // indirect
 	github.com/gopherex/xshutdown v1.1.0 // indirect
-	github.com/gopherex/xtrace v1.1.4 // indirect
-	github.com/gopherex/xtrace/contrib/libs/xlog v1.1.4 // indirect
-	github.com/gopherex/xtrace/contrib/sdk v1.1.4 // indirect
+	github.com/gopherex/xtrace v1.1.6 // indirect
+	github.com/gopherex/xtrace/contrib/libs/xlog v1.1.6 // indirect
+	github.com/gopherex/xtrace/contrib/sdk v1.1.6 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/consul/api v1.33.4 // indirect
