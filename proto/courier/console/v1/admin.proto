@@ -34,7 +34,7 @@ message ListChannelsResponse {
 // Channel is one configured channel as the console shows it.
 message Channel {
   string name = 1;
-  // mail, push, webpush, or a plugin's kind.
+  // mail, push, apns, webpush, webhook, or a plugin's kind.
   string kind = 2;
   // The plugin serving it; empty for a built-in kind.
   string plugin = 3;

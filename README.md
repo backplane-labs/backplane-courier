@@ -13,7 +13,8 @@ provider's Retry-After becomes `activity.RetryAfter`. Every delivery is a
 platform audit record (`courier.delivered`, `courier.failed`; recipients and
 tokens hashed, never a payload).
 
-A provider's final refusal (Web Push `gone`, FCM `UNREGISTERED`, an SMTP 5xx,
+A provider's final refusal (Web Push `gone`, FCM `UNREGISTERED`, APNs
+`Unregistered`, an SMTP 5xx,
 an extension's permanent error) is also the event `courier.Refused`
 (`proto/courier/events/v1`; TypeScript: the npm package
 `@backplane-labs/courier-events`): kind, channel, provider, code, message and the
@@ -30,6 +31,7 @@ full semantics.
 | --- | --- |
 | `courier.SendMail` | A rendered mail (`to`, `cc`, `bcc`, `reply_to`, `subject`, `text`, `html`, `headers`, `attachments`, optional `from`, `channel`) through a mail channel. Answers `{channel, message_id}`. |
 | `courier.SendPush` | A push to one `token`, `topic` or `condition`: `title`, `body`, `image`, `data`, `priority`, `ttl_seconds`, `collapse_key`, and the raw FCM `android`, `apns`, `webpush`, `fcm_options` blocks merged over them, so every FCM field is reachable (`mutable-content`, `content-available`, `apns-push-type`, ...). `validate_only` checks with FCM without delivering. Answers `{channel, name}`. |
+| `courier.SendApns` | A push to one Apple device through APNs directly, the only way to deliver a VoIP (PushKit) push: `token` (hex; the PushKit token for voip), `topic` (else the channel's), `push_type` (`alert` by default, `voip`, `background`, `liveactivity`, ...), `priority` (10, 5, 1), `ttl_seconds` (`apns-expiration`; 0: now or never), `collapse_id`, `id` (`apns-id`), `payload` (the whole APNs JSON: `aps` and the app's keys, at most 4096 bytes, 5120 for voip). Answers `{channel, id}` (the `apns-id`). A refusal fails for good with APNs' reason as its code (see [APNs](#apns)). |
 | `courier.Subscribe`, `courier.Unsubscribe` | Device `tokens` (at most 1000) to or from an FCM `topic`; answers each token's outcome. |
 | `courier.SendWebPush` | A Web Push to one browser `subscription` (`{endpoint, keys: {p256dh, auth}}`, as `PushSubscription.toJSON()` writes it): `payload` (any JSON, at most 3993 bytes, what the service worker gets as `event.data.json()`), `ttl_seconds` (default 86400), `urgency`, `topic`. Answers `{channel, id}`. A subscription the browser dropped fails for good with code `gone`: delete it. |
 | `courier.WebPushKey` | The channel's VAPID public key, the `applicationServerKey` browsers subscribe with. |
@@ -50,6 +52,8 @@ channels:
     timeout: 30s
   push:
     fcm: {credentials: ${FCM_KEY}}      # service account key JSON; project_id from it unless set
+  voip:
+    apns: {key_id: ABC123DEFG, team_id: TEAM123456, key: ${APNS_P8}, topic: com.shop.app.voip}
   web:
     webpush: {subject: mailto:ops@shop.example, public_key: B..., private_key: ${VAPID_PRIVATE_KEY}}
   hooks:
@@ -129,6 +133,36 @@ internal addresses, and to any host when `hosts` is empty. Use it for a push
 service in the installation's own network, such as a test stand, or for
 development.
 
+## APNs
+
+An `apns` channel talks to Apple directly over HTTP/2 with token-based
+authentication: `key` is the contents of the APNs auth key (`.p8`), `key_id`
+its ID, `team_id` the Apple Developer team. Courier signs the provider token
+(ES256) and renews it every 40 minutes, and at once when APNs answers
+`ExpiredProviderToken`. `topic` is the default `apns-topic`: the bundle ID for
+alerts, `<bundle ID>.voip` for VoIP; a message may name another. `endpoint`
+defaults to `https://api.push.apple.com`; development builds' tokens go to
+`https://api.sandbox.push.apple.com`, so such builds need a channel of their
+own.
+
+Use it where FCM cannot deliver: a VoIP push through PushKit to CallKit. Apple
+requires every VoIP push to report a call to CallKit at once, so send `voip`
+only to ring; everything else goes as alerts. A `voip` push needs a `.voip`
+topic and priority 10 (or none).
+
+APNs answers a refusal with a reason, which becomes the delivery's code and
+the `courier.Refused` code:
+- the token is dead (drop the address): `Unregistered`, `ExpiredToken` (410),
+  `BadDeviceToken`; `DeviceTokenNotForTopic` names a token of another app;
+- other `4xx` (a malformed push, `PayloadTooLarge`, `TopicDisallowed`, a key
+  APNs refuses: `InvalidProviderToken`) are final too;
+- `ExpiredProviderToken`, `IdleTimeout`, `TooManyProviderTokenUpdates`, `429`
+  and `5xx` are retried.
+
+The console's check sends to a placeholder token: an answer of
+`BadDeviceToken` proves the key, the team and the channel's `topic`; nothing
+is delivered.
+
 ## Push channels on a test stand
 
 A test installation can run push channels entirely against fakes it
@@ -144,6 +178,13 @@ channels:
                                           # {"type":"service_account","project_id":"stand",
                                           #  "client_email":"courier@stand.iam.gserviceaccount.com",
                                           #  "private_key":"<a PEM RSA key>","token_uri":"http://push-fake:8080/token"}
+  voip:
+    apns:
+      endpoint: http://push-fake:8080     # POST /3/device/<token>; http speaks HTTP/1.1, https HTTP/2
+      key_id: STAND00001
+      team_id: STAND00002
+      key: ${STAND_APNS_P8}               # any P-256 key in PKCS#8 PEM, as a .p8 holds
+      topic: ru.stand.app.voip
   web:
     webpush: {subject: mailto:ops@stand.test, public_key: B..., private_key: ${VAPID_PRIVATE_KEY}, insecure: true}
 ```
@@ -155,6 +196,11 @@ channels:
   and `courier.Refused` names the token. `NOT_FOUND`, `INVALID_ARGUMENT`,
   `SENDER_ID_MISMATCH`, `THIRD_PARTY_AUTH_ERROR` and `PERMISSION_DENIED` are
   final too.
+- **APNs.** The fake receives the pushes with `authorization: bearer <JWT>`
+  (ES256, `kid` = `key_id`, `iss` = `team_id`) and the `apns-*` headers.
+  Answer `200` with an `apns-id` header to accept; `410` with
+  `{"reason":"Unregistered"}` is a final refusal naming the token in
+  `courier.Refused`.
 - **Web Push.** With `insecure: true` a subscription may name the fake's
   `http://` endpoint. A `404` or `410` is the final refusal `gone`.
 
@@ -194,6 +240,7 @@ go run ./examples/smsplugin &   # the example plugin of deployments/dev.yaml
 make run                # against the local stack with deployments/dev.yaml
 ```
 
-Tests run fake SMTP and FCM endpoints in process
-(`internal/smtp/smtptest`, `internal/fcm/fcmtest`) and a plugin over a unix
-socket.
+Tests run fake SMTP, FCM and APNs endpoints in process
+(`internal/smtp/smtptest`, `internal/fcm/fcmtest`, `internal/apns/apnstest`:
+HTTP/2 over TLS, checking the provider token against the key) and a plugin
+over a unix socket.

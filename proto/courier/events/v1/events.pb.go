@@ -27,7 +27,7 @@ const (
 // event's key is the channel.
 type Refused struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Kind of the delivery: mail, push, webpush or an extension's kind.
+	// Kind of the delivery: mail, push, apns, webpush, webhook or an extension's kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Channel that delivered it.
 	Channel string `protobuf:"bytes,2,opt,name=channel,proto3" json:"channel,omitempty"`

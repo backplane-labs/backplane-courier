@@ -33,6 +33,7 @@ import (
 	sp "github.com/gopherex/schemapb/go/schemapb"
 	"github.com/gopherex/xlog"
 
+	"github.com/backplane-labs/backplane-courier/internal/apns"
 	"github.com/backplane-labs/backplane-courier/internal/channels"
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/internal/mail"
@@ -75,6 +76,12 @@ type (
 	PushResult struct {
 		Channel string `json:"channel"`
 		Name    string `json:"name"              schemapb:"description=FCM's message name"`
+		DryRun  bool   `json:"dry_run,omitempty"`
+	}
+	// ApnsResult is SendApns's answer.
+	ApnsResult struct {
+		Channel string `json:"channel"`
+		ID      string `json:"id"                schemapb:"description=apns-id of the push"`
 		DryRun  bool   `json:"dry_run,omitempty"`
 	}
 	// WebPushResult is SendWebPush's answer.
@@ -137,6 +144,9 @@ func New(
 		activity.Describe("delivers a rendered mail through a mail channel of the installation"))
 	activity.Handle(c, "SendPush", c.SendPush, activity.StartToClose(sendTimeout),
 		activity.Describe("delivers a push to a device, a topic or a condition through a push channel"))
+	activity.Handle(c, "SendApns", c.SendApns, activity.StartToClose(sendTimeout),
+		activity.Describe("delivers a push to an Apple device through APNs directly, VoIP (PushKit) included; "+
+			"a dead token fails for good with APNs' reason (Unregistered, ExpiredToken, BadDeviceToken)"))
 	activity.Handle(c, "SendWebPush", c.SendWebPush, activity.StartToClose(sendTimeout),
 		activity.Describe("delivers a Web Push to a browser's subscription through a webpush channel; "+
 			"a gone subscription fails with code gone"))
@@ -315,6 +325,44 @@ func (c *Courier) SendPush(ctx context.Context, msg push.Message) (PushResult, e
 		out.Name = name
 
 		return name, err //nolint:wrapcheck // classified by deliver
+	})
+
+	return out, err
+}
+
+// SendApns is the courier.SendApns activity.
+func (c *Courier) SendApns(ctx context.Context, msg apns.Message) (ApnsResult, error) {
+	ch, err := c.pick(channels.KindAPNs, msg.Channel)
+	if err != nil {
+		return ApnsResult{}, err
+	}
+
+	var cfg apns.Config
+	if ch.APNs != nil {
+		cfg = ch.APNs.Config()
+	}
+
+	if err := msg.Validate(cfg); err != nil {
+		return ApnsResult{}, activity.NonRetryable(err) //nolint:wrapcheck // final
+	}
+
+	out := ApnsResult{Channel: ch.Name, DryRun: c.set.DryRun.Get()}
+
+	tokens := []string{msg.Token}
+
+	err = c.deliver(ctx, ch, msg.Target(), tokens, tokens, func(ctx context.Context) (string, error) {
+		if ch.APNs == nil || out.DryRun {
+			c.logged(ctx, ch, msg.Target(), len(msg.Payload))
+
+			out.ID = "logged/" + uuid.NewString()
+
+			return out.ID, nil
+		}
+
+		id, err := ch.APNs.Send(ctx, msg)
+		out.ID = id
+
+		return id, err //nolint:wrapcheck // classified by deliver
 	})
 
 	return out, err

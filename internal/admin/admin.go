@@ -22,6 +22,7 @@ import (
 
 	"github.com/gopherex/xlog"
 
+	"github.com/backplane-labs/backplane-courier/internal/apns"
 	"github.com/backplane-labs/backplane-courier/internal/channels"
 	"github.com/backplane-labs/backplane-courier/internal/courier"
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
@@ -88,6 +89,8 @@ func activityOf(kind string) string {
 		return "SendMail"
 	case channels.KindPush:
 		return "SendPush"
+	case channels.KindAPNs:
+		return "SendApns"
 	case channels.KindWebPush:
 		return "SendWebPush"
 	case channels.KindWebhook:
@@ -139,6 +142,13 @@ func details(ch *channels.Channel) map[string]string {
 		}
 
 		return d
+	case s.APNs != nil:
+		endpoint := s.APNs.Endpoint
+		if endpoint == "" {
+			endpoint = apns.DefaultEndpoint
+		}
+
+		return map[string]string{"team": s.APNs.TeamID, "key": s.APNs.KeyID, "topic": s.APNs.Topic, "endpoint": endpoint}
 	case s.WebPush != nil:
 		return map[string]string{
 			"subject": s.WebPush.Subject, "public_key": s.WebPush.PublicKey,
@@ -185,6 +195,8 @@ func (a *Admin) CheckChannel(
 		err = ch.Mail.Check(ctx)
 	case ch.Push != nil:
 		err = ch.Push.Check(ctx)
+	case ch.APNs != nil:
+		err = ch.APNs.Check(ctx)
 	case ch.WebPush != nil:
 		err = ch.WebPush.Check(ctx)
 	case ch.Extension != nil:

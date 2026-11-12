@@ -22,7 +22,7 @@ export const file_courier_events_v1_events: GenFile = /*@__PURE__*/
  */
 export type Refused = Message<"courier.events.v1.Refused"> & {
   /**
-   * Kind of the delivery: mail, push, webpush or an extension's kind.
+   * Kind of the delivery: mail, push, apns, webpush, webhook or an extension's kind.
    *
    * @generated from field: string kind = 1;
    */

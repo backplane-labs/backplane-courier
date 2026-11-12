@@ -23,6 +23,8 @@ import (
 
 	sp "github.com/gopherex/schemapb/go/schemapb"
 
+	"github.com/backplane-labs/backplane-courier/internal/apns"
+	"github.com/backplane-labs/backplane-courier/internal/apns/apnstest"
 	"github.com/backplane-labs/backplane-courier/internal/channels"
 	"github.com/backplane-labs/backplane-courier/internal/courier"
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
@@ -108,6 +110,7 @@ type fixture struct {
 	courier *courier.Courier
 	smtp    *smtptest.Server
 	fcm     *fcmtest.Server
+	apns    *apnstest.Server
 	push    *pushService
 	sms     *sms
 	remote  *sms
@@ -116,7 +119,9 @@ type fixture struct {
 func start(t *testing.T) *fixture {
 	t.Helper()
 
-	f := &fixture{smtp: smtptest.Start(t), fcm: fcmtest.Start(t), push: startPushService(t), sms: &sms{}, remote: &sms{}}
+	f := &fixture{
+		smtp: smtptest.Start(t), fcm: fcmtest.Start(t), apns: apnstest.Start(t), push: startPushService(t), sms: &sms{}, remote: &sms{},
+	}
 	f.h = backplanetest.New(t, backplanetest.Name("courier"))
 
 	// The remote provider is a plugin on a unix socket.
@@ -160,6 +165,7 @@ func start(t *testing.T) *fixture {
 			Pool: 2, Timeout: 5 * time.Second,
 		},
 		"push":    {FCM: &fcm.Config{Credentials: "{}", ProjectID: "p", Endpoint: f.fcm.URL, IIDEndpoint: f.fcm.URL}, Pool: 2, Timeout: 5 * time.Second},
+		"voip":    {APNs: ptr(f.apns.Config("ru.komeet.app.voip")), Pool: 2, Timeout: 5 * time.Second},
 		"devmail": {Log: &channels.Log{Kind: "mail"}, Pool: 1, Timeout: time.Second},
 		"web":     {WebPush: f.push.config(t), Pool: 1, Timeout: 5 * time.Second},
 		"devweb":  {Log: &channels.Log{Kind: "webpush"}, Pool: 1, Timeout: time.Second},
@@ -173,7 +179,7 @@ func start(t *testing.T) *fixture {
 
 	chs, err := channels.New(f.h.Root(), cfg, channels.Options{
 		Extensions: exts, Defaults: map[string]string{"mail": "mail", "webpush": "web"}, TokenSource: fcmtest.TokenSource(),
-		WebPushClient: f.push.client, WebhookClient: f.push.client,
+		WebPushClient: f.push.client, WebhookClient: f.push.client, APNsClient: f.apns.Client(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -279,6 +285,57 @@ func TestPush(t *testing.T) {
 	if _, err := call[courier.TopicRequest, courier.TopicResult](t, f, "Unsubscribe", courier.TopicRequest{Topic: "news", Tokens: []string{"a"}}); err != nil ||
 		len(f.fcm.Subscribed("news")) != 0 {
 		t.Fatalf("unsubscribe: %v", err)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// A ring as komeet sends it: a VoIP push to a PushKit token; a dead token
+// is final with APNs' reason and published as courier.Refused, so the
+// product drops the address; throttling is retried.
+func TestApns(t *testing.T) {
+	t.Parallel()
+
+	f := start(t)
+
+	const pushkit = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+
+	zero := int64(0)
+
+	out, err := call[apns.Message, courier.ApnsResult](t, f, "SendApns", apns.Message{
+		Token: pushkit, PushType: "voip", Priority: 10, TTLSeconds: &zero, Payload: json.RawMessage(`{"komeet":"c2VhbGVk"}`),
+	})
+	if err != nil || out.Channel != "voip" || out.ID == "" || len(f.apns.Pushes()) != 1 ||
+		f.apns.Pushes()[0].Headers.Get("Apns-Topic") != "ru.komeet.app.voip" {
+		t.Fatalf("ring: %+v %v", out, err)
+	}
+
+	dead := strings.Repeat("d", 64)
+	f.apns.Answer(dead, apnstest.Answer{Status: 410, Reason: "Unregistered"})
+
+	if _, err := call[apns.Message, courier.ApnsResult](t, f, "SendApns",
+		apns.Message{Token: dead, PushType: "voip", Payload: json.RawMessage(`{}`)}); !isFinal(err) {
+		t.Fatalf("dead token: %v", err)
+	}
+
+	refused := backplanetest.Events(f.h, f.courier.Refused())
+	if len(refused) != 1 || refused[0].GetCode() != "Unregistered" || refused[0].GetKind() != "apns" ||
+		!slices.Equal(refused[0].GetAddresses(), []string{dead}) {
+		t.Fatalf("refused: %v", refused)
+	}
+
+	busy := strings.Repeat("b", 64)
+	f.apns.Answer(busy, apnstest.Answer{Status: 429, Reason: "TooManyRequests"})
+
+	if _, err := call[apns.Message, courier.ApnsResult](t, f, "SendApns",
+		apns.Message{Token: busy, PushType: "voip", Payload: json.RawMessage(`{}`)}); err == nil || isFinal(err) {
+		t.Fatalf("throttled: %v", err)
+	}
+
+	// An invalid push never reaches APNs.
+	if _, err := call[apns.Message, courier.ApnsResult](t, f, "SendApns",
+		apns.Message{Token: "not hex", Payload: json.RawMessage(`{}`)}); !isFinal(err) {
+		t.Fatalf("invalid: %v", err)
 	}
 }
 

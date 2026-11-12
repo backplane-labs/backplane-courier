@@ -9,7 +9,7 @@ option go_package = "github.com/backplane-labs/backplane-courier/proto/courier/e
 // act on the address, e.g. drop a push subscription that is gone. The
 // event's key is the channel.
 message Refused {
-  // Kind of the delivery: mail, push, webpush or an extension's kind.
+  // Kind of the delivery: mail, push, apns, webpush, webhook or an extension's kind.
   string kind = 1;
   // Channel that delivered it.
   string channel = 2;

@@ -63,7 +63,7 @@ export type Channel = Message<"courier.console.v1.Channel"> & {
   name: string;
 
   /**
-   * mail, push, webpush, or a plugin's kind.
+   * mail, push, apns, webpush, webhook, or a plugin's kind.
    *
    * @generated from field: string kind = 2;
    */

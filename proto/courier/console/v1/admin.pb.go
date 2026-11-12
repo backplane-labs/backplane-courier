@@ -115,7 +115,7 @@ func (x *ListChannelsResponse) GetDryRun() bool {
 type Channel struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// mail, push, webpush, or a plugin's kind.
+	// mail, push, apns, webpush, webhook, or a plugin's kind.
 	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
 	// The plugin serving it; empty for a built-in kind.
 	Plugin string `protobuf:"bytes,3,opt,name=plugin,proto3" json:"plugin,omitempty"`

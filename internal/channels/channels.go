@@ -12,6 +12,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/time/rate"
 
+	"github.com/backplane-labs/backplane-courier/internal/apns"
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/internal/smtp"
 	"github.com/backplane-labs/backplane-courier/internal/webhook"
@@ -23,6 +24,7 @@ import (
 const (
 	ProviderSMTP    = "smtp"
 	ProviderFCM     = "fcm"
+	ProviderAPNs    = "apns"
 	ProviderWebPush = "webpush"
 	ProviderWebhook = "webhook"
 	ProviderLog     = "log"
@@ -51,14 +53,15 @@ type Extension struct {
 // Channel at run time.
 type Channel struct {
 	Name string
-	// Kind: mail, push or a provider's kind.
+	// Kind: mail, push, apns, webpush, webhook or a provider's kind.
 	Kind string
-	// Provider: smtp, fcm, webpush, log, or the extension's name.
+	// Provider: smtp, fcm, apns, webpush, webhook, log, or the extension's name.
 	Provider string
 	Spec     Spec
 
 	Mail      *smtp.Sender
 	Push      *fcm.Client
+	APNs      *apns.Client
 	WebPush   *webpush.Client
 	Webhook   *webhook.Client
 	Extension *Extension
@@ -110,6 +113,8 @@ type Options struct {
 	Defaults map[string]string
 	// TokenSource authorizes every FCM channel instead of its credentials.
 	TokenSource oauth2.TokenSource
+	// APNsClient posts to APNs (tests); nil: an HTTP/2 client.
+	APNsClient *http.Client
 	// WebPushClient posts to push services (tests); nil: the default.
 	WebPushClient *http.Client
 	// WebhookClient posts webhooks (tests); nil: the default.
@@ -163,6 +168,13 @@ func build(name string, spec Spec, opts Options) (*Channel, error) {
 		}
 
 		ch.Kind, ch.Provider, ch.Push = KindPush, ProviderFCM, client
+	case spec.APNs != nil:
+		client, err := apns.New(*spec.APNs, opts.APNsClient)
+		if err != nil {
+			return nil, fmt.Errorf("apns: %w", err)
+		}
+
+		ch.Kind, ch.Provider, ch.APNs = KindAPNs, ProviderAPNs, client
 	case spec.WebPush != nil:
 		ch.Kind, ch.Provider, ch.WebPush = KindWebPush, ProviderWebPush, webpush.New(*spec.WebPush, opts.WebPushClient)
 	case spec.Webhook != nil:
