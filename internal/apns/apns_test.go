@@ -144,9 +144,9 @@ func TestSendVoIP(t *testing.T) {
 		t.Fatalf("push %+v", p)
 	}
 
-	// The push carries the caller's trace.
-	if tp := p.Headers.Get("Traceparent"); !strings.Contains(tp, span.SpanContext().TraceID().String()) {
-		t.Fatalf("traceparent %q", tp)
+	// Apple gets none of the installation's trace context.
+	if sent := p.Headers.Get("Traceparent") + p.Headers.Get("Tracestate") + p.Headers.Get("Baggage"); sent != "" {
+		t.Fatalf("trace context sent to APNs: %q", sent)
 	}
 }
 
@@ -332,6 +332,6 @@ func TestCheck(t *testing.T) {
 
 // TestMain installs the W3C propagator, as the SDK does at start.
 func TestMain(m *testing.M) {
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	os.Exit(m.Run())
 }

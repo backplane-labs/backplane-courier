@@ -262,8 +262,8 @@ func New(cfg Config, client *http.Client) (*Client, error) {
 		}
 	}
 
-	// Every push is a client span carrying the caller's trace, whichever
-	// client sends it.
+	// Every push is a client span of the caller's trace, whichever client
+	// sends it; Apple gets none of the trace context.
 	traced := *client
 	traced.Transport = tracehttp.NewTransport(orDefault(traced.Transport))
 	client = &traced

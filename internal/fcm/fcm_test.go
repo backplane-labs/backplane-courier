@@ -109,7 +109,7 @@ func TestSendCarriesTrace(t *testing.T) {
 			return
 		}
 
-		got <- r.Header.Get("Traceparent")
+		got <- r.Header.Get("Traceparent") + r.Header.Get("Tracestate") + r.Header.Get("Baggage")
 		_, _ = w.Write([]byte(`{"name":"projects/stand/messages/1"}`))
 	}))
 	t.Cleanup(stand.Close)
@@ -126,13 +126,13 @@ func TestSendCarriesTrace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if tp := <-got; !strings.Contains(tp, span.SpanContext().TraceID().String()) {
-		t.Fatalf("traceparent %q", tp)
+	if sent := <-got; sent != "" {
+		t.Fatalf("trace context sent to FCM: %q", sent)
 	}
 }
 
 // TestMain installs the W3C propagator, as the SDK does at start.
 func TestMain(m *testing.M) {
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	os.Exit(m.Run())
 }

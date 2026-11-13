@@ -207,7 +207,7 @@ type Client struct {
 // New is the client of a channel. A nil client: one that does not follow
 // redirects and, unless the channel is insecure, dials only public
 // addresses, directly (netguard.ErrForbiddenAddress); every request is a
-// client span carrying the caller's trace.
+// client span of the caller's trace that sends the receiver none of it.
 func New(cfg Config, client *http.Client) *Client {
 	switch {
 	case client != nil:
