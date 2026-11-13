@@ -227,7 +227,7 @@ func TestSend(t *testing.T) {
 	}
 
 	h := got.header
-	if h.Get("Content-Encoding") != "aes128gcm" || h.Get("Ttl") != "60" || h.Get("Urgency") != "high" || h.Get("Topic") != "chat-1" {
+	if h.Get("Content-Encoding") != "aes128gcm" || h.Get("TTL") != "60" || h.Get("Urgency") != "high" || h.Get("Topic") != "chat-1" {
 		t.Fatalf("headers: %v", h)
 	}
 

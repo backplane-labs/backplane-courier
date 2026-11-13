@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.26"
+  go: "1.27"
 output:
   formats:
     text:
@@ -45,7 +45,7 @@ linters:
     - godot
     - godox
     - gomoddirectives
-    - gomodguard
+    - gomodguard_v2
     - goprintffuncname
     - gosec
     - gosmopolitan
@@ -288,6 +288,11 @@ linters:
         - const C
         - T any
         - m map[string]int
+    wrapcheck:
+      # ADAPT: this module and the user's own libraries whose errors pass through unwrapped.
+      ignore-package-globs:
+        - github.com/backplane-labs/backplane-courier/*
+        - github.com/gopherex/*
   exclusions:
     generated: lax
     presets:
@@ -313,25 +318,48 @@ linters:
       - linters:
           - errorlint
         source: ^\s+if _, ok := err\.\([^.]+\.InternalError\); ok {
+      # Tests are checked for real defects only (govet, staticcheck, unused, ineffassign, errorlint,
+      # nilerr, protogetter, testifylint, thelper, tparallel, paralleltest, forbidigo, godox);
+      # style and shape rules do not apply to test code.
       - linters:
           - bodyclose
           - containedctx
+          - cyclop
+          - decorder
           - dupl
+          - dupword
           - err113
           - errcheck
+          - exhaustive
           - forcetypeassert
           - funlen
-          - goconst
-          - gosec
-          - noctx
-          - wrapcheck
           - gochecknoglobals
-          - cyclop
           - gocognit
+          - goconst
+          - gocritic
           - gocyclo
+          - godot
+          - gosec
+          - grouper
+          - inamedparam
+          - intrange
+          - ireturn
           - lll
           - maintidx
-        path: _test\.go
+          - mnd
+          - nestif
+          - nlreturn
+          - noctx
+          - nonamedreturns
+          - perfsprint
+          - prealloc
+          - revive
+          - unparam
+          - varnamelen
+          - whitespace
+          - wrapcheck
+          - wsl_v5
+        path: (_test\.go$|(^|/)tests/)
       - linters:
           - govet
         text: 'shadow: declaration of "(err|ctx)" shadows declaration at'

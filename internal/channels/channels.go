@@ -164,7 +164,7 @@ func build(name string, spec Spec, opts Options) (*Channel, error) {
 	case spec.FCM != nil:
 		client, err := fcm.New(*spec.FCM, opts.TokenSource)
 		if err != nil {
-			return nil, err //nolint:wrapcheck // names itself
+			return nil, err // names itself
 		}
 
 		ch.Kind, ch.Provider, ch.Push = KindPush, ProviderFCM, client

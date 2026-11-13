@@ -112,15 +112,15 @@ func (c Spec) Validate() error {
 
 	switch {
 	case c.SMTP != nil:
-		return c.SMTP.Validate() //nolint:wrapcheck // names itself
+		return c.SMTP.Validate() // names itself
 	case c.FCM != nil:
-		return c.FCM.Validate() //nolint:wrapcheck // names itself
+		return c.FCM.Validate() // names itself
 	case c.APNs != nil:
 		if err := c.APNs.Validate(); err != nil {
 			return fmt.Errorf("apns: %w", err)
 		}
 	case c.WebPush != nil:
-		return c.WebPush.Validate() //nolint:wrapcheck // names itself
+		return c.WebPush.Validate() // names itself
 	case c.Log != nil && !kindPattern.MatchString(c.Log.Kind):
 		return fmt.Errorf("%w: log.kind is mail, push, apns, webpush, webhook or a provider's kind", ErrConfig)
 	case c.Provider != nil && c.Provider.Name == "":

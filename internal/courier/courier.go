@@ -46,6 +46,12 @@ import (
 
 const sendTimeout = time.Minute
 
+// Delivery outcomes: the metric attribute and the audit event's name.
+const (
+	outcomeDelivered = "delivered"
+	outcomeFailed    = "failed"
+)
+
 // logFrom is the sender of a mail a log channel takes without one.
 const logFrom = "courier <no-reply@localhost>"
 
@@ -324,7 +330,7 @@ func (c *Courier) SendPush(ctx context.Context, msg push.Message) (PushResult, e
 		name, err := ch.Push.Send(ctx, body)
 		out.Name = name
 
-		return name, err //nolint:wrapcheck // classified by deliver
+		return name, err // classified by deliver
 	})
 
 	return out, err
@@ -362,7 +368,7 @@ func (c *Courier) SendApns(ctx context.Context, msg apns.Message) (ApnsResult, e
 		id, err := ch.APNs.Send(ctx, msg)
 		out.ID = id
 
-		return id, err //nolint:wrapcheck // classified by deliver
+		return id, err // classified by deliver
 	})
 
 	return out, err
@@ -409,7 +415,7 @@ func (c *Courier) SendWebPush(ctx context.Context, msg webpush.Message) (WebPush
 		id, err := ch.WebPush.Send(ctx, msg)
 		out.ID = id
 
-		return id, err //nolint:wrapcheck // classified by deliver
+		return id, err // classified by deliver
 	})
 
 	return out, err
@@ -580,7 +586,7 @@ func (c *Courier) extension(kind string) func(ctx context.Context, in []byte) ([
 			})
 			result = out
 
-			return "", err //nolint:wrapcheck // classified by deliver
+			return "", err // classified by deliver
 		})
 		if err != nil {
 			return nil, err
@@ -638,7 +644,7 @@ func (c *Courier) deliver(
 ) error {
 	release, err := ch.Acquire(ctx)
 	if err != nil {
-		return err //nolint:wrapcheck // the context's or the rate's
+		return err // the context's or the rate's
 	}
 	defer release()
 
@@ -649,9 +655,9 @@ func (c *Courier) deliver(
 	id, err := send(ctx)
 	took := time.Since(start)
 
-	outcome := "delivered"
+	outcome := outcomeDelivered
 	if err != nil {
-		outcome = "failed"
+		outcome = outcomeFailed
 	}
 
 	c.record(ctx, ch, target, id, outcome, took, err, scrub)
@@ -750,11 +756,13 @@ func (c *Courier) record(
 		key = uuid.NewString()
 	}
 
+	auditOutcome := map[string]string{outcomeDelivered: "succeeded", outcomeFailed: outcomeFailed}[outcome]
+
 	fields := []xlog.Field{
 		backplane.Audit(), xlog.String("event.name", "courier."+outcome),
 		xlog.String(backplane.AuditID, key+"/"+strconv.Itoa(int(info.Attempt))),
 		xlog.String(backplane.AuditSubject, ch.Kind+"/"+ch.Name), xlog.String(backplane.AuditActor, caller),
-		xlog.String(backplane.AuditOutcome, map[string]string{"delivered": "succeeded", "failed": "failed"}[outcome]),
+		xlog.String(backplane.AuditOutcome, auditOutcome),
 		xlog.String("channel", ch.Name), xlog.String("kind", ch.Kind), xlog.String("provider", ch.Provider),
 		xlog.String("target", target), xlog.String("id", id), xlog.Int("attempt", int(info.Attempt)),
 	}

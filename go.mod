@@ -1,14 +1,14 @@
 module github.com/backplane-labs/backplane-courier
 
-go 1.26.8
+go 1.27.4
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/backplane-labs/backplane v0.6.78
+	github.com/backplane-labs/backplane v0.6.82
 	github.com/emersion/go-smtp v0.25.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
-	github.com/gopherex/schemapb/go v1.9.9
+	github.com/gopherex/schemapb/go v1.10.1
 	github.com/gopherex/xlog v1.2.1
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1
 	github.com/wneessen/go-mail v0.8.1

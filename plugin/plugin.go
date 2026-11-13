@@ -114,7 +114,7 @@ type server struct {
 func (s *server) Describe(ctx context.Context, _ *pluginv1.DescribeRequest) (*pluginv1.DescribeResponse, error) {
 	d, err := s.p.Describe(ctx)
 	if err != nil {
-		return nil, err //nolint:wrapcheck // the provider's own error, as a status
+		return nil, err // the provider's own error, as a status
 	}
 
 	return &pluginv1.DescribeResponse{

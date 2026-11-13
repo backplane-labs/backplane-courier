@@ -259,12 +259,12 @@ var ErrContractChanged = errors.New("changed its contract since courier started:
 // check is the plugin's health and contract.
 func (p pluginDependency) check(ctx context.Context) error {
 	if err := p.client.Health(ctx); err != nil {
-		return err //nolint:wrapcheck // names the plugin
+		return err // names the plugin
 	}
 
 	got, err := p.client.Describe(ctx)
 	if err != nil {
-		return err //nolint:wrapcheck // names the plugin
+		return err // names the plugin
 	}
 
 	if got.Kind != p.want.Kind || !proto.Equal(got.Message, p.want.Message) || !proto.Equal(got.Result, p.want.Result) ||
@@ -284,7 +284,7 @@ func (p pluginDependency) Provide(context.Context, deps.Scope) (*plugin.Client, 
 func (p pluginDependency) Probe(ctx context.Context, _ *plugin.Client) error { return p.check(ctx) }
 
 func (p pluginDependency) Close(context.Context, *plugin.Client) error {
-	return p.client.Close() //nolint:wrapcheck // gRPC's own error
+	return p.client.Close() // gRPC's own error
 }
 
 // used are the extensions some channel uses: an activity is declared for
