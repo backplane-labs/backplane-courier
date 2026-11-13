@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
 	"github.com/backplane-labs/backplane-courier/plugin"
@@ -240,4 +245,46 @@ func TestSlowPlugin(t *testing.T) {
 		perr.Code != "PLUGIN_DeadlineExceeded" || !strings.Contains(perr.Message, "did not answer in time") {
 		t.Fatalf("slow: %v", err)
 	}
+}
+
+// traced answers with the trace id its Send ran in.
+type traced struct{ echo }
+
+func (traced) Send(ctx context.Context, _ provider.Delivery) ([]byte, error) {
+	return []byte(trace.SpanContextFromContext(ctx).TraceID().String()), nil
+}
+
+// A send continues courier's trace in the plugin.
+func TestSendCarriesTrace(t *testing.T) {
+	t.Parallel()
+
+	socket := filepath.Join(t.TempDir(), "t.sock")
+
+	lis, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() { _ = plugin.ServeListener(t.Context(), lis, traced{}) }()
+
+	client, err := plugin.Dial("unix://" + socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	ctx, span := sdktrace.NewTracerProvider().Tracer("test").Start(t.Context(), "delivery")
+	t.Cleanup(func() { span.End() })
+
+	out, err := client.Send(ctx, provider.Delivery{Message: []byte(`{}`), Attempt: 1})
+	if err != nil || string(out) != span.SpanContext().TraceID().String() {
+		t.Fatalf("plugin ran in trace %q, want %s: %v", out, span.SpanContext().TraceID(), err)
+	}
+}
+
+// TestMain installs the W3C propagator, as the SDK does at start.
+func TestMain(m *testing.M) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	os.Exit(m.Run())
 }

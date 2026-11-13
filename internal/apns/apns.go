@@ -21,6 +21,7 @@ import (
 
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
 	"github.com/golang-jwt/jwt/v5"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/backplane-labs/backplane-courier/internal/push"
 	"github.com/backplane-labs/backplane-courier/provider"
@@ -261,6 +262,12 @@ func New(cfg Config, client *http.Client) (*Client, error) {
 		}
 	}
 
+	// Every push is a client span carrying the caller's trace, whichever
+	// client sends it.
+	traced := *client
+	traced.Transport = otelhttp.NewTransport(orDefault(traced.Transport))
+	client = &traced
+
 	endpoint := cfg.Endpoint
 	if endpoint == "" {
 		endpoint = DefaultEndpoint
@@ -427,4 +434,13 @@ func parseError(res *http.Response, raw []byte) *provider.Error {
 	}
 
 	return e
+}
+
+// orDefault is rt, or http.DefaultTransport when nil (as http.Client reads it).
+func orDefault(rt http.RoundTripper) http.RoundTripper {
+	if rt == nil {
+		return http.DefaultTransport
+	}
+
+	return rt
 }

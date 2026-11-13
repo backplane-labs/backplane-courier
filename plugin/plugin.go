@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/meshdial"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
@@ -84,7 +86,10 @@ func ServeListener(ctx context.Context, lis net.Listener, p provider.Provider, o
 		MinTime: keepaliveTime / 2, PermitWithoutStream: true, //nolint:mnd // tolerate courier's pings
 	}))
 
-	srv := grpc.NewServer(o.grpc...)
+	// Every call continues courier's trace: the provider's work is a server
+	// span of the delivery that asked for it.
+	traced := grpc.StatsHandler(otelgrpc.NewServerHandler(otelgrpc.WithFilter(filters.Not(filters.HealthCheck()))))
+	srv := grpc.NewServer(append([]grpc.ServerOption{traced}, o.grpc...)...)
 	pluginv1.RegisterProviderServiceServer(srv, &server{p: p})
 
 	healthSrv := health.NewServer()

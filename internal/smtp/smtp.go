@@ -12,6 +12,10 @@ import (
 
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
 	gomail "github.com/wneessen/go-mail"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -101,12 +105,25 @@ func (s *Sender) Send(ctx context.Context, msg *gomail.Msg) error {
 		return err
 	}
 
+	// SMTP carries no trace context: the send is a client span of the
+	// caller's trace.
+	ctx, span := otel.Tracer(instrumentation).Start(ctx, "smtp send", trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.String("server.address", s.cfg.Host), attribute.Int64("server.port", s.cfg.Port)))
+	defer span.End()
+
 	if err := c.DialAndSendWithContext(ctx, msg); err != nil {
-		return classify(err)
+		err = classify(err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "smtp send failed")
+
+		return err
 	}
 
 	return nil
 }
+
+// instrumentation is the scope of the SMTP spans.
+const instrumentation = "github.com/backplane-labs/backplane-courier/internal/smtp"
 
 // Check connects and authenticates without sending.
 func (s *Sender) Check(ctx context.Context) error {

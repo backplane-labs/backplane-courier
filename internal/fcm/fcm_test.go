@@ -9,11 +9,15 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/backplane-labs/backplane-courier/internal/fcm"
 	"github.com/backplane-labs/backplane-courier/provider"
@@ -89,4 +93,46 @@ func TestStandEndpoints(t *testing.T) {
 	if strings.Contains(err.Error(), "stand-token") {
 		t.Fatal("the error carries the token")
 	}
+}
+
+// A send carries the caller's trace to FCM.
+func TestSendCarriesTrace(t *testing.T) {
+	t.Parallel()
+
+	got := make(chan string, 1)
+	stand := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/token" {
+			_, _ = w.Write([]byte(`{"access_token":"stand-token","token_type":"Bearer","expires_in":3600}`))
+
+			return
+		}
+
+		got <- r.Header.Get("Traceparent")
+		_, _ = w.Write([]byte(`{"name":"projects/stand/messages/1"}`))
+	}))
+	t.Cleanup(stand.Close)
+
+	c, err := fcm.New(fcm.Config{Credentials: serviceAccount(t, stand.URL+"/token"), Endpoint: stand.URL}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, span := sdktrace.NewTracerProvider().Tracer("test").Start(t.Context(), "caller")
+	t.Cleanup(func() { span.End() })
+
+	if _, err := c.Send(ctx, []byte(`{"message":{"token":"device"}}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	if tp := <-got; !strings.Contains(tp, span.SpanContext().TraceID().String()) {
+		t.Fatalf("traceparent %q", tp)
+	}
+}
+
+// TestMain installs the W3C propagator, as the SDK does at start.
+func TestMain(m *testing.M) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	os.Exit(m.Run())
 }

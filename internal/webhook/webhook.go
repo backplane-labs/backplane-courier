@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/netguard"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -205,14 +206,15 @@ type Client struct {
 
 // New is the client of a channel. A nil client: one that does not follow
 // redirects and, unless the channel is insecure, dials only public
-// addresses, directly (netguard.ErrForbiddenAddress).
+// addresses, directly (netguard.ErrForbiddenAddress); every request is a
+// client span carrying the caller's trace.
 func New(cfg Config, client *http.Client) *Client {
 	switch {
 	case client != nil:
 	case cfg.Insecure:
 		transport, _ := http.DefaultTransport.(*http.Transport)
 		client = &http.Client{
-			Transport:     transport.Clone(),
+			Transport:     otelhttp.NewTransport(transport.Clone()),
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
 	default:

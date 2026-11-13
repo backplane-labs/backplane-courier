@@ -3,10 +3,15 @@ package apns_test
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/backplane-labs/backplane-courier/internal/apns"
 	"github.com/backplane-labs/backplane-courier/internal/apns/apnstest"
@@ -109,7 +114,10 @@ func TestSendVoIP(t *testing.T) {
 
 	apns.SetNow(client, func() time.Time { return now })
 
-	id, err := client.Send(t.Context(), apns.Message{
+	ctx, span := sdktrace.NewTracerProvider().Tracer("test").Start(t.Context(), "caller")
+	t.Cleanup(func() { span.End() })
+
+	id, err := client.Send(ctx, apns.Message{
 		Token: token, Topic: "ru.komeet.app.voip", PushType: "voip", Priority: 10, TTLSeconds: ttl(30),
 		CollapseID: "call-1", ID: "12345678-1234-4234-8234-123456789012", Payload: json.RawMessage(`{"komeet":"c2VhbGVk"}`),
 	})
@@ -134,6 +142,11 @@ func TestSendVoIP(t *testing.T) {
 
 	if p.Token != token || string(p.Payload) != `{"komeet":"c2VhbGVk"}` || p.Issued != now.Unix() {
 		t.Fatalf("push %+v", p)
+	}
+
+	// The push carries the caller's trace.
+	if tp := p.Headers.Get("Traceparent"); !strings.Contains(tp, span.SpanContext().TraceID().String()) {
+		t.Fatalf("traceparent %q", tp)
 	}
 }
 
@@ -315,4 +328,10 @@ func TestCheck(t *testing.T) {
 	if len(srv.Pushes()) != 0 {
 		t.Fatalf("a check delivered %v", srv.Pushes())
 	}
+}
+
+// TestMain installs the W3C propagator, as the SDK does at start.
+func TestMain(m *testing.M) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	os.Exit(m.Run())
 }

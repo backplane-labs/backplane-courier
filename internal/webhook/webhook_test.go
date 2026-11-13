@@ -7,10 +7,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	standardwebhooks "github.com/standard-webhooks/standard-webhooks/libraries/go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/backplane-labs/backplane-courier/internal/webhook"
 	"github.com/backplane-labs/backplane-courier/provider"
@@ -186,4 +191,34 @@ func must[T any](v T, err error) T {
 	}
 
 	return v
+}
+
+// A delivery carries the caller's trace to the receiver.
+func TestSendCarriesTrace(t *testing.T) {
+	t.Parallel()
+
+	got := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got <- r.Header.Get("Traceparent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx, span := sdktrace.NewTracerProvider().Tracer("test").Start(t.Context(), "caller")
+	t.Cleanup(func() { span.End() })
+
+	m := webhook.Message{URL: srv.URL, Secrets: []string{"whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"}, Body: json.RawMessage(`{}`)}
+	if _, err := webhook.New(webhook.Config{Insecure: true}, nil).Send(ctx, m, "msg_t"); err != nil {
+		t.Fatal(err)
+	}
+
+	if tp := <-got; !strings.Contains(tp, span.SpanContext().TraceID().String()) {
+		t.Fatalf("traceparent %q", tp)
+	}
+}
+
+// TestMain installs the W3C propagator, as the SDK does at start.
+func TestMain(m *testing.M) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	os.Exit(m.Run())
 }

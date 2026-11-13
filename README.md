@@ -216,6 +216,9 @@ is the deployment's concern: courier dials its address. Courier waits for it
 at startup up to `startup_timeout`, probes its standard gRPC health as part of
 its own readiness, keeps the connection alive and lets gRPC reconnect. The
 contract evolves as protobuf does; an incompatible change is a new package.
+`plugin.Serve` continues courier's trace in every call (W3C trace context in
+the gRPC metadata) once the plugin's process installs the W3C propagator and
+a tracer provider, as a service on the SDK does at start.
 
 **A compiled-in provider** is a `provider.Provider` built into a custom
 binary:
@@ -227,6 +230,13 @@ func main() { courier.Main(courier.WithProvider("smsc", smsc.New())) }
 Either way the provider's channels use `{provider: {name: ...}}`, courier
 declares `courier.Send<Kind>` with the provider's schema, and a
 `provider.Error` says whether a failure is final or when to retry.
+
+## Tracing
+
+A delivery runs in the trace of the call that asked for it (an activity, a
+hook). Every send to a provider is a client span of it carrying the trace
+on: SMTP (`smtp send`, the relay as `server.address`), FCM, APNs, Web Push and
+webhooks over HTTP (`traceparent`), a plugin over gRPC.
 
 ## Development
 
