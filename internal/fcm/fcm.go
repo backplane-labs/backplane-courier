@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"github.com/backplane-labs/backplane/pkg/backplane/tracehttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
@@ -108,7 +108,7 @@ func New(cfg Config, ts oauth2.TokenSource) (*Client, error) {
 	return &Client{
 		send: strings.TrimSuffix(endpoint, "/") + "/v1/projects/" + cfg.Project() + "/messages:send",
 		iid:  strings.TrimSuffix(iid, "/") + "/iid/v1:",
-		http: &http.Client{Transport: otelhttp.NewTransport(&oauth2.Transport{
+		http: &http.Client{Transport: tracehttp.NewTransport(&oauth2.Transport{
 			Source: oauth2.ReuseTokenSource(nil, ts), Base: http.DefaultTransport,
 		})},
 	}, nil

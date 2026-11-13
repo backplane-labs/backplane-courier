@@ -236,7 +236,10 @@ declares `courier.Send<Kind>` with the provider's schema, and a
 A delivery runs in the trace of the call that asked for it (an activity, a
 hook). Every send to a provider is a client span of it carrying the trace
 on: SMTP (`smtp send`, the relay as `server.address`), FCM, APNs, Web Push and
-webhooks over HTTP (`traceparent`), a plugin over gRPC.
+webhooks over HTTP (`traceparent`), a plugin over gRPC. No span records a URL's
+path or query (device tokens, webhook secrets) or an SMTP error's text
+(recipients): an HTTP span keeps the method, host, port and status, a failed
+send its class or reply code (`error.type`).
 
 ## Development
 

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/netguard"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"github.com/backplane-labs/backplane/pkg/backplane/tracehttp"
 
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -214,7 +214,7 @@ func New(cfg Config, client *http.Client) *Client {
 	case cfg.Insecure:
 		transport, _ := http.DefaultTransport.(*http.Transport)
 		client = &http.Client{
-			Transport:     otelhttp.NewTransport(transport.Clone()),
+			Transport:     tracehttp.NewTransport(transport.Clone()),
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
 	default:

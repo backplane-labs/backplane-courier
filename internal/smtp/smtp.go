@@ -113,7 +113,17 @@ func (s *Sender) Send(ctx context.Context, msg *gomail.Msg) error {
 
 	if err := c.DialAndSendWithContext(ctx, msg); err != nil {
 		err = classify(err)
-		span.RecordError(err)
+
+		// The error's text names recipients: only its class and the
+		// reply code reach the span.
+		errorType := "transport"
+
+		var refused *provider.Error
+		if errors.As(err, &refused) {
+			errorType = refused.Code
+		}
+
+		span.SetAttributes(attribute.String("error.type", errorType))
 		span.SetStatus(codes.Error, "smtp send failed")
 
 		return err

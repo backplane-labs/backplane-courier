@@ -100,8 +100,13 @@ func TestSend(t *testing.T) {
 			}
 
 			if attrs["server.address"] != srv.Host() || attrs["server.port"] != strconv.FormatInt(srv.Port(), 10) ||
-				(send.Status().Code == codes.Error) != tc.permanent {
+				(send.Status().Code == codes.Error) != tc.permanent || tc.permanent && attrs["error.type"] != "550" {
 				t.Fatalf("span attributes %v, status %v", attrs, send.Status())
+			}
+
+			// No recipient reaches the span: no recorded error event.
+			if len(send.Events()) != 0 {
+				t.Fatalf("span events %v", send.Events())
 			}
 		})
 	}
