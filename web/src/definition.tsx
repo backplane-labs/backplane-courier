@@ -164,21 +164,22 @@ function WebPush({ channels }: { channels: Channel[] }) {
             <span style={muted}>{t('generateKeysHelp')}</span>
           </Stack>
           {snippet && (
-            <pre
-              aria-label={t('generatedKeys')}
-              style={{
-                ...mono,
-                fontSize: 12,
-                margin: 0,
-                padding: 12,
-                borderRadius: 6,
-                background: 'var(--muted)',
-                whiteSpace: 'pre-wrap',
-                overflowWrap: 'anywhere',
-              }}
-            >
-              {snippet}
-            </pre>
+            <figure aria-label={t('generatedKeys')} style={{ margin: 0 }}>
+              <pre
+                style={{
+                  ...mono,
+                  fontSize: 12,
+                  margin: 0,
+                  padding: 12,
+                  borderRadius: 6,
+                  background: 'var(--muted)',
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {snippet}
+              </pre>
+            </figure>
           )}
           {keys.error !== undefined && (
             <span role="alert" style={{ color: 'var(--destructive)', fontSize: 12 }}>

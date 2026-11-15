@@ -44,6 +44,10 @@ configure: ## Install the pinned linter and proto generators into ./bin
 configure-web: ## Install the console module's dependencies (GitHub Packages: see web/README.md)
 	cd web && yarn install --immutable
 
+.PHONY: lint-web
+lint-web: ## Lint and format-check the console module (Biome)
+	cd web && yarn lint
+
 .PHONY: gen
 gen: ## Generate the internal API: Go stubs and the module's TypeScript client
 	"$(BIN)/easyp" lint -p proto

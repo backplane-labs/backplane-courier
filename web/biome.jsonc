@@ -10,6 +10,11 @@
   // ADAPT: "overrides": [{ "includes": ["vite.config.ts"], "linter": { "rules": { "style": { "noDefaultExport": "off" } } } }]
   // for a file whose tool or library contract makes a rule impossible; one rule per file, the reason in a comment.
   // Bans Biome has no rule for: `as` casts (except `as const`) and `unknown`.
+  // The console host loads the federated ./Routes and ./Nav exposes as default exports (plugin-sdk host contract).
+  "overrides": [
+    { "includes": ["src/embedded.tsx"], "linter": { "rules": { "style": { "noDefaultExport": "off" } } } },
+    { "includes": ["src/navigation.ts"], "linter": { "rules": { "style": { "noDefaultExport": "off" } } } }
+  ],
   "plugins": ["./biome/no-type-assertion.grit", "./biome/no-unknown.grit"],
   "formatter": {
     "indentStyle": "space",
@@ -22,6 +27,10 @@
       "semicolons": "always",
       "trailingCommas": "all"
     }
+  },
+  "css": {
+    // Tailwind v4 stylesheets use @theme, @apply and @custom-variant.
+    "parser": { "tailwindDirectives": true }
   },
   "linter": {
     "rules": {

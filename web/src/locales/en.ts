@@ -1,4 +1,4 @@
-export default {
+export const english = {
   channels: 'Channels',
   title: 'Delivery channels',
   description:
