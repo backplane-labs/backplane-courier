@@ -1,0 +1,67 @@
+// The single source of the TypeScript lint and format config (rules/lang/typescript.md, Lint config).
+// A package copies it as biome.jsonc next to its package.json, with ~/.claude/rules/lang/biome/*.grit
+// as biome/*.grit. Only the places marked ADAPT differ.
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "files": {
+    // ADAPT: the package's sources; generated code excluded.
+    "includes": ["src/**", "!src/gen"]
+  },
+  // ADAPT: "overrides": [{ "includes": ["vite.config.ts"], "linter": { "rules": { "style": { "noDefaultExport": "off" } } } }]
+  // for a file whose tool or library contract makes a rule impossible; one rule per file, the reason in a comment.
+  // Bans Biome has no rule for: `as` casts (except `as const`) and `unknown`.
+  "plugins": ["./biome/no-type-assertion.grit", "./biome/no-unknown.grit"],
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noVar": "error",
+        "noDoubleEquals": "error",
+        "noTsIgnore": "error",
+        "noConsole": "error",
+        "noEvolvingTypes": "error",
+        "noImplicitAnyLet": "error",
+        "useAwait": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "error",
+        "noDefaultExport": "error",
+        "noNamespace": "error",
+        "noEnum": "error",
+        "noParameterAssign": "error",
+        "useImportType": "error"
+      },
+      "complexity": {
+        "noBannedTypes": "error"
+      },
+      "security": {
+        "noGlobalEval": "error"
+      },
+      "performance": {
+        "noReExportAll": "error"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error",
+        "useExhaustiveSwitchCases": "error"
+      }
+    }
+  }
+}

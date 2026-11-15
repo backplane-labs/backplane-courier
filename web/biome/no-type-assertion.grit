@@ -1,0 +1,10 @@
+language js(typescript)
+
+// `value as Type` is a cast: banned. `as const` narrows literals and stays.
+TsAsExpression() as $cast where {
+  $cast <: not contains `const`,
+  register_diagnostic(
+    span = $cast,
+    message = "No type assertions: narrow with a check, a type guard or a parser at the boundary."
+  )
+}

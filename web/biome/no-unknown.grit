@@ -1,0 +1,8 @@
+language js(typescript)
+
+TsUnknownType() as $type where {
+  register_diagnostic(
+    span = $type,
+    message = "No unknown: name the type, or parse the external value at the boundary."
+  )
+}

@@ -8,7 +8,9 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build && vite build --mode embedded",
     "preview": "vite preview --host 127.0.0.1 --outDir dist/standalone",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "fmt": "biome check --write ."
   },
   "dependencies": {
     "@backplane-labs/backplane-api": "0.6.78",
@@ -38,6 +40,7 @@
   },
   "devDependencies": {
     "@backplane-labs/backplane-plugin-build": "0.6.78",
+    "@biomejs/biome": "2.6.7",
     "@bufbuild/protoc-gen-es": "2.16.0",
     "@gopherex/protoc-gen-ws-es": "1.9.1",
     "@types/node": "22.19.15",
