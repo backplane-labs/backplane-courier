@@ -33,12 +33,19 @@ jobs:
           node-version: 22
           registry-url: https://npm.pkg.github.com
           scope: '@backplane-labs'
-      - run: corepack enable && corepack prepare yarn@1.22.22 --activate
+      - run: corepack enable
+      - name: GitHub Packages token for Yarn
+        working-directory: web
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          yarn config set --home npmScopes.backplane-labs.npmAuthToken "$NODE_AUTH_TOKEN"
+          yarn config set --home npmScopes.gopherex.npmAuthToken "$NODE_AUTH_TOKEN"
       - run: make configure configure-web
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: bin/golangci-lint run ./...
       - run: make gen && git diff --exit-code -- proto web/src/gen
-      - run: cd web && yarn -s typecheck && yarn -s build
+      - run: cd web && yarn typecheck && yarn build
       - run: go vet ./...
       - run: go test -race -count=1 -timeout 10m ./...

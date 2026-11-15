@@ -5,7 +5,7 @@ with a check against each provider. Built on the published `@backplane-labs/*`
 packages; the same page runs standalone against local fixtures.
 
 ```sh
-make configure-web   # yarn install (GitHub Packages: an npm token with read:packages for @backplane-labs and @gopherex)
+make configure-web   # yarn install (GitHub Packages: a read:packages token for @backplane-labs and @gopherex in ~/.yarnrc.yml npmScopes)
 make gen             # regenerates src/gen from proto/ (Go stubs too)
 cd web && yarn dev   # standalone with fixtures on http://127.0.0.1:5173
 make web             # dist/plugin, copied to internal/ui/dist and embedded by make build

@@ -1,6 +1,7 @@
 {
   "name": "@backplane-labs/courier-module",
   "version": "0.0.0",
+  "packageManager": "yarn@4.18.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,38 +12,38 @@
   },
   "dependencies": {
     "@backplane-labs/backplane-api": "0.6.78",
-    "@backplane-labs/backplane-client": "0.6.78",
-    "@backplane-labs/backplane-react": "0.6.78",
-    "@backplane-labs/backplane-theme": "0.6.78",
-    "@backplane-labs/backplane-ui": "0.6.78",
-    "@backplane-labs/backplane-plugin-sdk": "0.6.78",
-    "@backplane-labs/backplane-schema-forms": "0.6.78",
-    "@backplane-labs/backplane-editors": "0.6.78",
     "@backplane-labs/backplane-charts": "0.6.78",
+    "@backplane-labs/backplane-client": "0.6.78",
+    "@backplane-labs/backplane-editors": "0.6.78",
     "@backplane-labs/backplane-observability-ui": "0.6.78",
     "@backplane-labs/backplane-platform-ui": "0.6.78",
+    "@backplane-labs/backplane-plugin-sdk": "0.6.78",
+    "@backplane-labs/backplane-react": "0.6.78",
+    "@backplane-labs/backplane-schema-forms": "0.6.78",
+    "@backplane-labs/backplane-theme": "0.6.78",
+    "@backplane-labs/backplane-ui": "0.6.78",
     "@bufbuild/protobuf": "2.16.0",
-    "@grafana/data": "13.2.3",
-    "@grafana/ui": "13.2.3",
-    "@fontsource/ibm-plex-sans": "5.2.6",
     "@fontsource/ibm-plex-mono": "5.2.6",
+    "@fontsource/ibm-plex-sans": "5.2.6",
     "@gopherex/schemapb": "1.9.7",
     "@gopherex/ws-proto-transport": "1.9.1",
+    "@grafana/data": "13.2.3",
+    "@grafana/ui": "13.2.3",
+    "i18next": "26.4.2",
+    "lucide-react": "1.48.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-router-dom": "7.18.4",
-    "i18next": "26.4.2",
     "react-i18next": "17.0.15",
-    "lucide-react": "1.48.0"
+    "react-router-dom": "7.18.4"
   },
   "devDependencies": {
     "@backplane-labs/backplane-plugin-build": "0.6.78",
     "@bufbuild/protoc-gen-es": "2.16.0",
     "@gopherex/protoc-gen-ws-es": "1.9.1",
-    "vite": "8.3.1",
-    "typescript": "5.9.3",
+    "@types/node": "22.19.15",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "@types/node": "22.19.15"
+    "typescript": "5.9.3",
+    "vite": "8.3.1"
   }
 }

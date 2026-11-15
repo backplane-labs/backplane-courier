@@ -42,7 +42,7 @@ configure: ## Install the pinned linter and proto generators into ./bin
 
 .PHONY: configure-web
 configure-web: ## Install the console module's dependencies (GitHub Packages: see web/README.md)
-	cd web && yarn install --frozen-lockfile
+	cd web && yarn install --immutable
 
 .PHONY: gen
 gen: ## Generate the internal API: Go stubs and the module's TypeScript client
