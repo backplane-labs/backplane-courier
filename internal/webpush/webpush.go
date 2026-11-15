@@ -26,6 +26,7 @@ import (
 	wp "github.com/SherClockHolmes/webpush-go"
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
 	"github.com/backplane-labs/backplane/pkg/backplane/netguard"
+	"github.com/backplane-labs/backplane/pkg/backplane/tracehttp"
 
 	"github.com/backplane-labs/backplane-courier/provider"
 )
@@ -316,7 +317,7 @@ func New(cfg Config, client *http.Client) *Client {
 	case cfg.Insecure:
 		transport, _ := http.DefaultTransport.(*http.Transport)
 		client = &http.Client{
-			Transport:     transport.Clone(),
+			Transport:     tracehttp.NewTransport(transport.Clone()),
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
 	default:
