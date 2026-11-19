@@ -127,7 +127,8 @@ fans out per device, and deletes a subscription when a push fails with code
 `gone`. A subscription comes from a browser and is untrusted input, so courier
 posts only over https to the hosts in `hosts` (default: the browsers' own push
 services: `*.googleapis.com`, `*.push.services.mozilla.com`, `*.push.apple.com`,
-`*.notify.windows.com`), never to an IP address, and follows no redirect. The
+`*.notify.windows.com`), on port 443 only, never to an IP address or with
+userinfo (`netguard.CheckURL`), and follows no redirect. The
 address it dials is checked after DNS: a name that resolves to loopback, a
 private or shared range (RFC 1918, RFC 6598, ULA), link-local (the cloud
 metadata service among them), unspecified or multicast is refused, so a host

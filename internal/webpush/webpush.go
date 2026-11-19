@@ -292,13 +292,23 @@ func (c Config) checkEndpoint(raw string) error {
 		return fmt.Errorf("%w: endpoint is an https URL", ErrSubscription)
 	}
 
-	switch {
-	case endpoint.Scheme == "http" && !c.Insecure:
-		return fmt.Errorf("%w: %w: endpoint is not https", ErrSubscription, ErrEndpoint)
-	case c.Insecure && len(c.Hosts) == 0:
+	if c.Insecure {
+		// A push service in the installation's own network: any scheme,
+		// port and, without hosts, any host.
+		if len(c.Hosts) > 0 && !Allowed(endpoint.Hostname(), c.Hosts) {
+			return fmt.Errorf("%w: %s", ErrEndpoint, endpoint.Hostname())
+		}
+
 		return nil
-	case !Allowed(endpoint.Hostname(), c.Hosts):
-		return fmt.Errorf("%w: %s", ErrEndpoint, endpoint.Hostname())
+	}
+
+	hosts := c.Hosts
+	if len(hosts) == 0 {
+		hosts = DefaultHosts
+	}
+
+	if err := netguard.CheckURL(endpoint, hosts); err != nil {
+		return fmt.Errorf("%w: %w: %w", ErrSubscription, ErrEndpoint, err)
 	}
 
 	return nil

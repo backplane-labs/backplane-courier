@@ -164,6 +164,8 @@ func TestMessageValidate(t *testing.T) {
 		"internal host":   {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://billing.internal/x" }, want: webpush.ErrEndpoint},
 		"ip":              {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://10.0.0.1/x" }, want: webpush.ErrEndpoint},
 		"lookalike":       {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://evilgoogleapis.com/x" }, want: webpush.ErrEndpoint},
+		"other port":      {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://fcm.googleapis.com:8443/x" }, want: webpush.ErrEndpoint},
+		"empty port":      {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://fcm.googleapis.com:/x" }, want: webpush.ErrEndpoint},
 		"own host":        {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "https://push.example.com/x" }, cfg: webpush.Config{Hosts: []string{"push.example.com"}}},
 		"insecure http":   {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://push-fake:8080/x" }, cfg: webpush.Config{Insecure: true}},
 		"insecure ip":     {edit: func(m *webpush.Message) { m.Subscription.Endpoint = "http://10.0.0.1/x" }, cfg: webpush.Config{Insecure: true}},
