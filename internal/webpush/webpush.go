@@ -25,6 +25,7 @@ import (
 
 	wp "github.com/SherClockHolmes/webpush-go"
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
+	"github.com/backplane-labs/backplane/pkg/backplane/deps"
 	"github.com/backplane-labs/backplane/pkg/backplane/netguard"
 	"github.com/backplane-labs/backplane/pkg/backplane/tracehttp"
 
@@ -79,10 +80,12 @@ type Config struct {
 	// the sender at.
 	Subject string `json:"subject" schemapb:"description=mailto: address or https URL of the sender"`
 	// PublicKey: the VAPID public key, base64url of the uncompressed P-256
-	// point; browsers subscribe with it (applicationServerKey).
-	PublicKey string `json:"public_key" schemapb:"description=VAPID public key (base64url) browsers subscribe with"`
+	// point; browsers subscribe with it (applicationServerKey). Empty with
+	// private_key: courier mints the pair once and keeps it (README).
+	// Changing a pair makes every browser subscribe again.
+	PublicKey string `json:"public_key,omitempty" schemapb:"description=VAPID public key (base64url), empty: minted"`
 	// PrivateKey: the VAPID private key, base64url of the P-256 scalar.
-	PrivateKey config.Secret `json:"private_key" schemapb:"secret=true;description=VAPID private key (base64url)"`
+	PrivateKey config.Secret `json:"private_key,omitempty" schemapb:"secret=true;description=VAPID private key"`
 	// Hosts the endpoints may point at: exact names or *.suffix; empty:
 	// DefaultHosts. Subscriptions come from browsers, so an endpoint is
 	// untrusted input: courier posts only to push services listed here,
@@ -99,11 +102,34 @@ func (c Config) Validate() error {
 	switch {
 	case !strings.HasPrefix(c.Subject, "mailto:") && !strings.HasPrefix(c.Subject, "https://"):
 		return fmt.Errorf("%w: subject is a mailto: address or an https URL", ErrConfig)
-	case c.PublicKey == "" || c.PrivateKey == "":
-		return fmt.Errorf("%w: public_key and private_key are required (generate a pair in the console)", ErrConfig)
+	case (c.PublicKey == "") != (c.PrivateKey == ""):
+		return fmt.Errorf("%w: public_key and private_key go together (both empty: minted)", ErrConfig)
+	case c.PublicKey == "":
+		return nil
 	}
 
 	return checkPair(c.PublicKey, c.PrivateKey.Reveal())
+}
+
+// Pair is a channel's VAPID key pair, base64url.
+type Pair struct {
+	Public  string `json:"public"`
+	Private string `json:"private"`
+}
+
+// Configured is the pair the configuration gives, if it gives one.
+func (c Config) Configured() (Pair, bool) {
+	return Pair{Public: c.PublicKey, Private: c.PrivateKey.Reveal()}, c.PublicKey != ""
+}
+
+// MintPair is a fresh pair, checked.
+func MintPair() (Pair, error) {
+	public, private, err := GenerateKeys()
+	if err != nil {
+		return Pair{}, err
+	}
+
+	return Pair{Public: public, Private: private}, checkPair(public, private)
 }
 
 // checkPair: the private key is a P-256 scalar whose public key is pub.
@@ -305,13 +331,15 @@ func (m Message) Target() string {
 type Client struct {
 	cfg  Config
 	http *http.Client
+	pair deps.Dependency[Pair]
 }
 
 // New is the client of cfg (validated); client nil: the default, which
 // follows no redirect (an endpoint must not bounce courier elsewhere) and,
 // unless the channel is insecure, dials only public addresses, directly
 // (netguard.ErrForbiddenAddress).
-func New(cfg Config, client *http.Client) *Client {
+// pair is the channel's keys: deps.Static of Configured, or the minted pair.
+func New(cfg Config, client *http.Client, pair deps.Dependency[Pair]) *Client {
 	switch {
 	case client != nil:
 	case cfg.Insecure:
@@ -324,17 +352,21 @@ func New(cfg Config, client *http.Client) *Client {
 		client = netguard.Client()
 	}
 
-	return &Client{cfg: cfg, http: client}
+	return &Client{cfg: cfg, http: client, pair: pair}
 }
 
 // Config of the channel: what its endpoints may name.
 func (c *Client) Config() Config { return c.cfg }
 
 // PublicKey of the channel: browsers subscribe with it.
-func (c *Client) PublicKey() string { return c.cfg.PublicKey }
+func (c *Client) PublicKey() string { return c.pair.Get().Public }
 
 // Check verifies the key pair; no push service has a call to try.
-func (c *Client) Check(context.Context) error { return c.cfg.Validate() }
+func (c *Client) Check(context.Context) error {
+	pair := c.pair.Get()
+
+	return checkPair(pair.Public, pair.Private)
+}
 
 // Send encrypts and posts m (validated) and returns the message's id —
 // the push service's Location — or a *provider.Error: final for a gone or
@@ -345,8 +377,8 @@ func (c *Client) Send(ctx context.Context, m Message) (string, error) {
 	res, err := wp.SendNotificationWithContext(ctx, m.Payload, &wp.Subscription{
 		Endpoint: m.Subscription.Endpoint, Keys: wp.Keys{P256dh: m.Subscription.Keys.P256dh, Auth: m.Subscription.Keys.Auth},
 	}, &wp.Options{
-		HTTPClient: c.http, Subscriber: subscriber, VAPIDPublicKey: c.cfg.PublicKey,
-		VAPIDPrivateKey: c.cfg.PrivateKey.Reveal(), TTL: m.TTL(), Urgency: wp.Urgency(m.Urgency), Topic: m.Topic,
+		HTTPClient: c.http, Subscriber: subscriber, VAPIDPublicKey: c.pair.Get().Public,
+		VAPIDPrivateKey: c.pair.Get().Private, TTL: m.TTL(), Urgency: wp.Urgency(m.Urgency), Topic: m.Topic,
 	})
 	if err != nil {
 		if errors.Is(err, wp.ErrMaxPadExceeded) {

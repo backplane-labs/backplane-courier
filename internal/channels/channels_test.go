@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/backplanetest"
+	"github.com/backplane-labs/backplane/pkg/backplane/config"
 
 	"github.com/backplane-labs/backplane-courier/internal/channels"
 	"github.com/backplane-labs/backplane-courier/internal/smtp"
+	"github.com/backplane-labs/backplane-courier/internal/webpush"
 )
 
 func TestPickAndValidate(t *testing.T) {
@@ -64,5 +66,52 @@ func TestPickAndValidate(t *testing.T) {
 		if bad.Validate() == nil {
 			t.Fatalf("%s accepted", name)
 		}
+	}
+}
+
+// A Web Push channel without a pair needs a store to mint one; with a pair
+// it needs none. MintsWebPushKeys tells which.
+func TestWebPushKeys(t *testing.T) {
+	t.Parallel()
+
+	public, private, err := webpush.GenerateKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	given := channels.Spec{WebPush: &webpush.Config{
+		Subject: "mailto:ops@example.com", PublicKey: public, PrivateKey: config.Secret(private),
+	}}
+	minted := channels.Spec{WebPush: &webpush.Config{Subject: "mailto:ops@example.com"}}
+
+	tests := []struct {
+		name    string
+		cfg     channels.Config
+		mints   bool
+		wantErr error
+	}{
+		{name: "configured pair", cfg: channels.Config{"w": given}},
+		{name: "no pair, no store", cfg: channels.Config{"w": minted}, mints: true, wantErr: channels.ErrNoKeyStore},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.cfg.MintsWebPushKeys(); got != tc.mints {
+				t.Fatalf("mints %v, want %v", got, tc.mints)
+			}
+
+			chs, err := channels.New(backplanetest.New(t).Root(), tc.cfg, channels.Options{})
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err %v, want %v", err, tc.wantErr)
+			}
+
+			if err == nil {
+				if ch, _ := chs.Get("w"); ch == nil || ch.WebPush.PublicKey() != public {
+					t.Fatalf("channel %+v", ch)
+				}
+			}
+		})
 	}
 }

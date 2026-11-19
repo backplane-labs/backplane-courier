@@ -161,3 +161,17 @@ func (c Config) Names() []string {
 
 	return out
 }
+
+// MintsWebPushKeys reports whether a Web Push channel gives no pair, so
+// courier mints and keeps one.
+func (c Config) MintsWebPushKeys() bool {
+	for _, spec := range c {
+		if spec.WebPush != nil {
+			if _, ok := spec.WebPush.Configured(); !ok {
+				return true
+			}
+		}
+	}
+
+	return false
+}

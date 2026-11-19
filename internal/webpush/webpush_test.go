@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
+	"github.com/backplane-labs/backplane/pkg/backplane/deps"
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/backplane-labs/backplane-courier/internal/webpush"
@@ -122,13 +123,19 @@ func TestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// No pair: courier mints and keeps one.
+	if err := (webpush.Config{Subject: good.Subject}).Validate(); err != nil {
+		t.Fatalf("no keys: %v", err)
+	}
+
 	other := channel(t)
 
 	for name, c := range map[string]webpush.Config{
-		"subject":    {Subject: "ops@example.com", PublicKey: good.PublicKey, PrivateKey: good.PrivateKey},
-		"no keys":    {Subject: good.Subject},
-		"mismatched": {Subject: good.Subject, PublicKey: other.PublicKey, PrivateKey: good.PrivateKey},
-		"garbage":    {Subject: good.Subject, PublicKey: good.PublicKey, PrivateKey: "!!"},
+		"subject":      {Subject: "ops@example.com", PublicKey: good.PublicKey, PrivateKey: good.PrivateKey},
+		"public only":  {Subject: good.Subject, PublicKey: good.PublicKey},
+		"private only": {Subject: good.Subject, PrivateKey: good.PrivateKey},
+		"mismatched":   {Subject: good.Subject, PublicKey: other.PublicKey, PrivateKey: good.PrivateKey},
+		"garbage":      {Subject: good.Subject, PublicKey: good.PublicKey, PrivateKey: "!!"},
 	} {
 		if err := c.Validate(); !errors.Is(err, webpush.ErrConfig) {
 			t.Errorf("%s: %v", name, err)
@@ -210,7 +217,7 @@ func TestSend(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	client := webpush.New(cfg, srv.Client())
+	client := webpush.New(cfg, srv.Client(), configured(cfg))
 	ttl := int64(60)
 	msg := webpush.Message{
 		Subscription: b.subscription(srv.URL + "/push/abc"), Payload: []byte(`{"title":"Привет"}`),
@@ -298,7 +305,7 @@ func TestNoRedirects(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	// The default client, with the test server's roots.
-	client := webpush.New(channel(t), nil)
+	client := webpush.New(channel(t), nil, configured(channel(t)))
 	webpush.UseTransport(client, srv.Client().Transport)
 
 	_, err := client.Send(context.Background(), webpush.Message{
@@ -307,4 +314,11 @@ func TestNoRedirects(t *testing.T) {
 	if err == nil || hit {
 		t.Fatalf("followed a redirect: %v", err)
 	}
+}
+
+// configured is the pair cfg gives, as a ready dependency.
+func configured(cfg webpush.Config) deps.Dependency[webpush.Pair] {
+	pair, _ := cfg.Configured()
+
+	return deps.Static(pair)
 }

@@ -110,9 +110,17 @@ logs and the audit, which keep only its host.
 Web Push is a standard (RFC 8030, 8291, 8292), so it is built in: no vendor
 account, one provider for Chrome, Edge, Firefox and Safari, whose push
 services the subscription's endpoint names. A `webpush` channel is a VAPID key
-pair and a contact `subject` (`mailto:` or an `https` URL); generate the pair
-in the console (Channels → Web Push) and keep the private key a secret. The
-console also sends a test push to a subscription pasted from a browser.
+pair and a contact `subject` (`mailto:` or an `https` URL). Without
+`public_key` and `private_key`, courier mints the pair on its first start and
+keeps it in the NATS JetStream KV bucket `courier_webpush`, one key per
+channel: replicas starting together end with the one pair the first stored,
+and it never rotates, since every browser subscription is bound to the public
+key. The bucket holds private keys: grant `$KV.courier_webpush.>` to
+courier's NATS identity alone. Without NATS a channel needs its pair.
+A pair in the configuration wins and nothing is minted; changing a channel's
+pair, given or minted, makes every browser subscribe again. The console
+generates a pair (Channels → Web Push) and sends a test push to a
+subscription pasted from a browser.
 
 Courier keeps no subscriptions: the product stores what its pages hand it,
 fans out per device, and deletes a subscription when a push fails with code

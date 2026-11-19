@@ -117,6 +117,9 @@ type Options struct {
 	APNsClient *http.Client
 	// WebPushClient posts to push services (tests); nil: the default.
 	WebPushClient *http.Client
+	// WebPushKeys mints and keeps the pair of a Web Push channel the
+	// configuration gives none; nil: every channel needs its own.
+	WebPushKeys *webpush.Store
 	// WebhookClient posts webhooks (tests); nil: the default.
 	WebhookClient *http.Client
 }
@@ -127,8 +130,12 @@ func New(parent deps.Scope, cfg Config, opts Options) (*Channels, error) {
 		Component: deps.NewComponent(parent, "channels"), byName: map[string]*Channel{}, defaults: map[string]string{},
 	}
 
+	if cfg.MintsWebPushKeys() && opts.WebPushKeys == nil {
+		return nil, ErrNoKeyStore
+	}
+
 	for _, name := range cfg.Names() {
-		ch, err := build(name, cfg[name], opts)
+		ch, err := build(c, name, cfg[name], opts)
 		if err != nil {
 			return nil, fmt.Errorf("channel %q: %w", name, err)
 		}
@@ -152,7 +159,7 @@ func New(parent deps.Scope, cfg Config, opts Options) (*Channels, error) {
 	return c, nil
 }
 
-func build(name string, spec Spec, opts Options) (*Channel, error) {
+func build(parent deps.Scope, name string, spec Spec, opts Options) (*Channel, error) {
 	ch := &Channel{Name: name, Spec: spec, pool: make(chan struct{}, max(spec.Pool, 1))}
 	if spec.RatePerMinute > 0 {
 		ch.limiter = rate.NewLimiter(rate.Every(time.Minute/time.Duration(spec.RatePerMinute)), int(max(spec.Pool, 1)))
@@ -176,7 +183,8 @@ func build(name string, spec Spec, opts Options) (*Channel, error) {
 
 		ch.Kind, ch.Provider, ch.APNs = KindAPNs, ProviderAPNs, client
 	case spec.WebPush != nil:
-		ch.Kind, ch.Provider, ch.WebPush = KindWebPush, ProviderWebPush, webpush.New(*spec.WebPush, opts.WebPushClient)
+		ch.Kind, ch.Provider = KindWebPush, ProviderWebPush
+		ch.WebPush = webPushClient(parent, name, *spec.WebPush, opts)
 	case spec.Webhook != nil:
 		ch.Kind, ch.Provider, ch.Webhook = KindWebhook, ProviderWebhook, webhook.New(*spec.Webhook, opts.WebhookClient)
 	case spec.Log != nil:
@@ -252,4 +260,18 @@ func (c *Channels) IsDefault(ch *Channel) bool {
 	picked, err := c.Pick(ch.Kind, "")
 
 	return err == nil && picked == ch
+}
+
+// ErrNoKeyStore: a Web Push channel without a configured pair, and no
+// store to mint one (courier runs without NATS).
+var ErrNoKeyStore = errors.New("webpush: no public_key/private_key and no NATS to mint and keep a pair")
+
+// webPushClient is the channel's client with the configured pair, else
+// with the one the store mints and keeps (New checked there is a store).
+func webPushClient(parent deps.Scope, name string, cfg webpush.Config, opts Options) *webpush.Client {
+	if pair, ok := cfg.Configured(); ok {
+		return webpush.New(cfg, opts.WebPushClient, deps.Static(pair))
+	}
+
+	return webpush.New(cfg, opts.WebPushClient, opts.WebPushKeys.Pair(parent, name))
 }

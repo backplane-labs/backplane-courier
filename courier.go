@@ -19,6 +19,7 @@ import (
 	"github.com/backplane-labs/backplane/pkg/backplane/config"
 	"github.com/backplane-labs/backplane/pkg/backplane/deps"
 	"github.com/backplane-labs/backplane/pkg/backplane/drivers/standard"
+	infranats "github.com/backplane-labs/backplane/pkg/backplane/infra/nats"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -28,6 +29,7 @@ import (
 	core "github.com/backplane-labs/backplane-courier/internal/courier"
 	"github.com/backplane-labs/backplane-courier/internal/mail"
 	"github.com/backplane-labs/backplane-courier/internal/ui"
+	"github.com/backplane-labs/backplane-courier/internal/webpush"
 	"github.com/backplane-labs/backplane-courier/plugin"
 	courierconsolev1 "github.com/backplane-labs/backplane-courier/proto/courier/console/v1"
 	"github.com/backplane-labs/backplane-courier/provider"
@@ -143,6 +145,7 @@ func newState(ctx context.Context, root backplane.Root[Config], o options) (*Sta
 
 	st.Channels, err = channels.New(root, cfg.Channels, channels.Options{ //nolint:contextcheck // builds, does not call
 		Extensions: extensions, Defaults: cfg.Defaults, TokenSource: o.tokens,
+		WebPushKeys: webPushKeys(root, cfg),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("courier: %w", err)
@@ -301,4 +304,18 @@ func used(cfg channels.Config, all map[string]*channels.Extension) map[string]*c
 	}
 
 	return out
+}
+
+// webPushKeys is the store of the Web Push pairs courier mints, on the
+// service's NATS: only when a channel's configuration gives no pair.
+func webPushKeys(root backplane.Root[Config], cfg Config) *webpush.Store {
+	if !cfg.NATS.Enabled() || !cfg.Channels.MintsWebPushKeys() {
+		return nil
+	}
+
+	section := infranats.FromBackplane(cfg.NATS)
+	conn := deps.NewDependency(root, infranats.New(section), deps.Name("nats keys"))
+	store := webpush.NewStore(conn, section, int(cfg.NATS.Replicas))
+
+	return &store
 }

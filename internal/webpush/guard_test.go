@@ -30,7 +30,7 @@ func TestDialsOnlyPublicAddresses(t *testing.T) {
 	cfg := channel(t)
 	cfg.Hosts = []string{"localhost"}
 
-	_, err = webpush.New(cfg, nil).Send(context.Background(), webpush.Message{
+	_, err = webpush.New(cfg, nil, configured(cfg)).Send(context.Background(), webpush.Message{
 		Subscription: newBrowser(t).subscription("https://localhost:" + served.Port() + "/push"), Payload: []byte(`{}`),
 	})
 
@@ -61,7 +61,7 @@ func TestInsecurePostsInside(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := webpush.New(cfg, nil).Send(context.Background(), m)
+	_, err := webpush.New(cfg, nil, configured(cfg)).Send(context.Background(), m)
 
 	var refusal *provider.Error
 	if !errors.As(err, &refusal) || refusal.Code != "gone" || !refusal.Permanent || hits.Load() != 1 {
