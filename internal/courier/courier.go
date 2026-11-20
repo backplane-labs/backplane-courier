@@ -708,6 +708,11 @@ func outcomeOf(err error) (string, string) {
 	return outcomeFailed, metricCode(refusal.Code)
 }
 
+// identifierRune: a letter, digit, underscore or dash.
+func identifierRune(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-'
+}
+
 // maxMetricCode bounds a code as a metric label.
 const maxMetricCode = 32
 
@@ -719,7 +724,7 @@ func metricCode(code string) string {
 	}
 
 	for _, r := range code {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+		if !identifierRune(r) {
 			return "other"
 		}
 	}
