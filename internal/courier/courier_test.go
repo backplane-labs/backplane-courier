@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -562,4 +563,32 @@ func retryAfter(err error) time.Duration {
 	d, _ := activity.RetryAfterOf(err)
 
 	return d
+}
+
+// A delivery's outcome and code are metric labels: bounded, a permanent
+// refusal apart from a failure.
+func TestOutcomeOf(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		err           error
+		outcome, code string
+	}{
+		{name: "delivered", outcome: "delivered"},
+		{name: "technical", err: errors.New("dial"), outcome: "failed"},
+		{name: "gone address", err: provider.Permanent("gone", "410"), outcome: "refused", code: "gone"},
+		{name: "later", err: provider.Later("rate_limited", "429", 0), outcome: "failed", code: "rate_limited"},
+		{name: "unbounded plugin code", err: provider.Permanent("user 42 not found", "x"), outcome: "refused", code: "other"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if outcome, code := courier.OutcomeOf(tc.err); outcome != tc.outcome || code != tc.code {
+				t.Fatalf("%s/%s, want %s/%s", outcome, code, tc.outcome, tc.code)
+			}
+		})
+	}
 }

@@ -50,6 +50,9 @@ const sendTimeout = time.Minute
 const (
 	outcomeDelivered = "delivered"
 	outcomeFailed    = "failed"
+	// outcomeRefused: the provider refused for good (its code says why: a
+	// gone address, an invalid token, ...).
+	outcomeRefused = "refused"
 )
 
 // logFrom is the sender of a mail a log channel takes without one.
@@ -196,7 +199,7 @@ func New(
 	var err error
 
 	c.deliveries, err = c.Meter().Int64Counter("courier.deliveries",
-		metric.WithDescription("Deliveries by channel, kind and outcome"))
+		metric.WithDescription("Deliveries by channel, kind, outcome (delivered, refused, failed) and provider code"))
 	if err != nil {
 		return nil, fmt.Errorf("courier metrics: %w", err)
 	}
@@ -655,12 +658,7 @@ func (c *Courier) deliver(
 	id, err := send(ctx)
 	took := time.Since(start)
 
-	outcome := outcomeDelivered
-	if err != nil {
-		outcome = outcomeFailed
-	}
-
-	c.record(ctx, ch, target, id, outcome, took, err, scrub)
+	c.record(ctx, ch, target, id, took, err, scrub)
 	c.refuse(ctx, ch, addresses, err, scrub)
 
 	return classify(err)
@@ -689,6 +687,44 @@ func (c *Courier) refuse(ctx context.Context, ch *channels.Channel, addresses []
 	if err := c.refused.Publish(ctx, refused, opts...); err != nil && !errors.Is(err, event.ErrUnavailable) {
 		c.Log().Ctx().Warn(ctx, "courier.Refused not published", xlog.String("channel", ch.Name), xlog.Err(err))
 	}
+}
+
+// outcomeOf is a delivery's outcome and the provider's code (bounded: the
+// providers' own refusal codes; empty when delivered or failed without one).
+func outcomeOf(err error) (string, string) {
+	if err == nil {
+		return outcomeDelivered, ""
+	}
+
+	var refusal *provider.Error
+	if !errors.As(err, &refusal) {
+		return outcomeFailed, ""
+	}
+
+	if refusal.Permanent {
+		return outcomeRefused, metricCode(refusal.Code)
+	}
+
+	return outcomeFailed, metricCode(refusal.Code)
+}
+
+// maxMetricCode bounds a code as a metric label.
+const maxMetricCode = 32
+
+// metricCode keeps a provider code a bounded label: a plugin's code that is
+// not a short identifier is "other".
+func metricCode(code string) string {
+	if len(code) > maxMetricCode {
+		return "other"
+	}
+
+	for _, r := range code {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return "other"
+		}
+	}
+
+	return code
 }
 
 // classify maps a provider error to the activity's.
@@ -737,10 +773,11 @@ const minScrub = 4
 // record is the delivery's metrics and audit record: facts only, never a
 // payload; recipients and tokens are hashed.
 func (c *Courier) record(
-	ctx context.Context, ch *channels.Channel, target, id, outcome string, took time.Duration, err error, scrub []string,
+	ctx context.Context, ch *channels.Channel, target, id string, took time.Duration, err error, scrub []string,
 ) {
+	outcome, code := outcomeOf(err)
 	attrs := metric.WithAttributes(attribute.String("channel", ch.Name), attribute.String("kind", ch.Kind),
-		attribute.String("outcome", outcome))
+		attribute.String("outcome", outcome), attribute.String("code", code))
 	c.deliveries.Add(ctx, 1, attrs)
 	c.duration.Record(ctx, took.Seconds(), attrs)
 

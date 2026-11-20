@@ -269,3 +269,12 @@ Tests run fake SMTP, FCM and APNs endpoints in process
 (`internal/smtp/smtptest`, `internal/fcm/fcmtest`, `internal/apns/apnstest`:
 HTTP/2 over TLS, checking the provider token against the key) and a plugin
 over a unix socket.
+
+## Metrics
+
+| Name | Type | Labels |
+|---|---|---|
+| `courier.deliveries` | counter | `channel`, `kind`, `outcome` (`delivered`, `refused`: the provider refused for good, `failed`), `code` (the provider's refusal code, `other` when it is not a short identifier) |
+| `courier.delivery.duration` | histogram, s | the same |
+
+A dead address is `outcome=refused` with the provider's code (`gone`, `Unregistered`, `UNREGISTERED`, an SMTP `550`). The SDK's metrics come on top (backplane `reference/metrics`).
