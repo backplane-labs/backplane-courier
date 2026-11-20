@@ -4,3 +4,6 @@ package admin
 func HostsText(hosts []string, insecure bool, otherwise string) string {
 	return hostsText(hosts, insecure, otherwise)
 }
+
+// Details is details, for the tests.
+var Details = details

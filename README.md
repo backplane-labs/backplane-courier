@@ -118,8 +118,10 @@ and it never rotates, since every browser subscription is bound to the public
 key. The bucket holds private keys: grant `$KV.courier_webpush.>` to
 courier's NATS identity alone. Without NATS a channel needs its pair.
 A pair in the configuration wins and nothing is minted; changing a channel's
-pair, given or minted, makes every browser subscribe again. The console
-generates a pair (Channels → Web Push) and sends a test push to a
+pair, given or minted, makes every browser subscribe again. The console's
+channel details show the key browsers subscribe with and where it comes from
+(`keys`: the configuration, or minted into `courier_webpush`). It also
+generates a pair to pin in the configuration (Channels → Web Push) and sends a test push to a
 subscription pasted from a browser.
 
 Courier keeps no subscriptions: the product stores what its pages hand it,

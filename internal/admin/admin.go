@@ -150,8 +150,14 @@ func details(ch *channels.Channel) map[string]string {
 
 		return map[string]string{"team": s.APNs.TeamID, "key": s.APNs.KeyID, "topic": s.APNs.Topic, "endpoint": endpoint}
 	case s.WebPush != nil:
+		keys := "configuration"
+		if s.WebPush.PublicKey == "" {
+			keys = "minted by courier, kept in NATS KV " + webpush.Bucket
+		}
+
 		return map[string]string{
-			"subject": s.WebPush.Subject, "public_key": s.WebPush.PublicKey,
+			// The key browsers subscribe with, configured or minted.
+			"subject": s.WebPush.Subject, "public_key": ch.WebPush.PublicKey(), "keys": keys,
 			"hosts": hostsText(s.WebPush.Hosts, s.WebPush.Insecure, "the browsers' push services"),
 		}
 	case s.Webhook != nil:

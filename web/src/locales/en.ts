@@ -32,9 +32,9 @@ export const english = {
   webPush: 'Web Push',
   webPushHelp:
     "Browsers subscribe with the channel's public key (courier.WebPushKey); the product keeps their subscriptions and drops one when a push fails with code gone.",
-  generateKeys: 'Generate VAPID keys',
+  generateKeys: 'Generate your own VAPID pair',
   generateKeysHelp:
-    "A fresh pair for a webpush channel: the public key goes to browsers, the private key into the channel's secret. Courier keeps nothing.",
+    "Not needed by default: a webpush channel without keys gets a pair courier mints once and keeps in NATS KV (its public key is in the channel's details). Generate one only to pin the pair in the configuration: the public key goes to browsers, the private key into the channel's secret; changing it makes every browser subscribe again.",
   generatedKeys: 'Generated keys',
   subscription: 'Subscription',
   subscriptionHelp: "PushSubscription.toJSON() of a browser subscribed with this channel's public key.",
