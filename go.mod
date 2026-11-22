@@ -4,11 +4,11 @@ go 1.27.4
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/backplane-labs/backplane v0.6.111
+	github.com/backplane-labs/backplane v0.6.117
 	github.com/emersion/go-smtp v0.25.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
-	github.com/gopherex/schemapb/go v1.12.1
+	github.com/gopherex/schemapb/go v1.13.2
 	github.com/gopherex/xlog v1.3.1
 	github.com/nats-io/nats-server/v2 v2.15.3
 	github.com/nats-io/nats.go v1.56.0
